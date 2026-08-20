@@ -3,6 +3,7 @@
 ## 0.8.0
 
 - Hardened locked-holdout integrity checks so validation detects altered partition metadata in addition to changed source texts and decisions.
+- Added relocatable schema-v3 holdout locks that store portable project/corpus references while retaining verification support for legacy absolute-path schema-v2 locks.
 - Guaranteed a nonempty stratified holdout whenever a corpus has at least two usable samples, including singleton-strata fallback behavior.
 - Persisted measured local model-call totals in ablation summaries instead of relying only on pre-run candidate-count estimates.
 - Added measured model calls to paired confidence analysis and compute-aware decision ranking, while retaining estimates as a fallback when measured totals are unavailable.
