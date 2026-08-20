@@ -41,6 +41,8 @@ full 3-source run  123 calls
 
 These are topology-based upper bounds, not token or wall-clock estimates. The regression suite locks these expectations so accidental compute growth is visible.
 
+The smoke commands explicitly use `configs/smoke_split.json`. That file assigns all three synthetic documents to development and no documents to holdout. This prevents an unrelated `corpus/split.json` left in a local workspace from silently changing the smoke matrix.
+
 ## 1. Install and confirm local models
 
 ```powershell
@@ -64,7 +66,7 @@ authorship-shift index-corpus corpus
 authorship-shift validate-corpus --manifest corpus/corpus_manifest.json
 ```
 
-Do not create the locked development/holdout split yet. With only three samples, the smoke test should exercise all three documents. The real stratified holdout is created only after the corpus is expanded.
+Do not create the real locked development/holdout split yet. The smoke test uses the dedicated all-development partition in `configs/smoke_split.json`; the real stratified holdout is created only after the corpus is expanded.
 
 ## 3. Preview the exact smoke matrix
 
@@ -72,7 +74,8 @@ Do not create the locked development/holdout split yet. With only three samples,
 authorship-shift ablation-plan `
   --corpus corpus `
   --output ablations/smoke_v08 `
-  --config configs/smoke.json
+  --config configs/smoke.json `
+  --split configs/smoke_split.json
 ```
 
 Expected plan:
@@ -89,7 +92,8 @@ Tasks are deliberately grouped by source, then variant. The first three tasks th
 authorship-shift estimate-ablation `
   --corpus corpus `
   --output ablations/smoke_v08 `
-  --config configs/smoke.json
+  --config configs/smoke.json `
+  --split configs/smoke_split.json
 ```
 
 This consumes no model calls and no detector queries. The expected full-suite upper bound is **123 local model calls**. If the estimate materially differs, inspect the configuration or pipeline topology before generating anything.
@@ -101,6 +105,7 @@ authorship-shift ablate `
   --corpus corpus `
   --output ablations/smoke_v08 `
   --config configs/smoke.json `
+  --split configs/smoke_split.json `
   --models "gemma3,qwen3:8b" `
   --judge-model gemma3 `
   --max-runs 3
@@ -119,6 +124,7 @@ authorship-shift ablate `
   --corpus corpus `
   --output ablations/smoke_v08 `
   --config configs/smoke.json `
+  --split configs/smoke_split.json `
   --models "gemma3,qwen3:8b" `
   --judge-model gemma3
 ```
