@@ -34,6 +34,7 @@ class ExternalResult:
     candidate_id: str | None = None
     detector_version: str | None = None
     frozen_before_test: bool | None = None
+    candidate_sha256: str | None = None
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
