@@ -1,105 +1,176 @@
 # AuthorshipShift
 
-A portable writing workflow for rewriting or drafting prose with stronger document-level structure, less formulaic language, and strict semantic fidelity.
+AuthorshipShift is a writing-transformation system built around two layers:
 
-**The primary version does not require a local model, Ollama, Python, or an API key.** ChatGPT, Codex, or another Agent Skills-compatible host provides the model; AuthorshipShift provides the reusable writing method.
+1. a **portable ChatGPT/Codex Skill** for semantic locking, voice instructions, and convenient use;
+2. a **generation engine** for independent candidate generation, deterministic diagnostics, fidelity checks, and later model tuning.
 
-## Primary deliverable: portable Agent Skill
+The Skill is the user-facing interface. The engine is the research and control layer.
 
-The installable skill lives at:
+## Why the architecture changed
+
+Early versions attempted to do the entire job inside a reusable Agent Skill. Controlled tests showed that the Skill could change structure and wording, but the host model repeatedly returned to similar openings, transition patterns, balanced argument shapes, and lexical families.
+
+That result established an important boundary: prompt instructions can steer generation, but they do not provide direct control over the tokenizer, token probabilities, sampling distribution, or model weights.
+
+AuthorshipShift therefore now separates **instruction-level control** from **generation-level control**.
+
+See [`docs/ENGINE_V2.md`](docs/ENGINE_V2.md) for the current architecture.
+
+## Architecture
+
+```text
+source / notes / user request
+          |
+          v
+portable AuthorshipShift Skill
+          |
+          v
+semantic lock + content atoms
+          |
+          v
+Generation Engine v2
+     /      |      \
+ profile A profile B profile C
+     \      |      /
+   independent candidates
+          |
+          v
+zero-cost deterministic diagnostics
+          |
+          v
+fidelity + quality gates
+          |
+          v
+candidate selection
+          |
+          v
+finished prose
+```
+
+The generator layer is provider-agnostic. It can eventually wrap hosted models, open-weight models, local inference, fine-tuned adapters, or a manual/offline bridge. **A normal end user does not need to download a local model merely to use the portable Skill.**
+
+## Portable Skill
+
+The installable Skill lives at:
 
 ```text
 .agents/skills/authorship-shift/
 ├── SKILL.md
 └── references/
+    ├── CANDIDATE_RERANKING.md
+    ├── LEXICAL_RECONSTRUCTION.md
     ├── SELF_CHECK.md
+    ├── STRUCTURAL_RECONSTRUCTION.md
     └── WRITING_METHOD.md
 ```
 
-The skill follows the Agent Skills open format. It converts the original multi-stage pipeline into one host-model workflow:
+The Skill handles:
 
-```text
-source / notes
-    ↓
-silent semantic lock
-    ↓
-document-level structure choice
-    ↓
-full draft or rewrite
-    ↓
-global revision
-    ↓
-fidelity check
-    ↓
-finished prose
-```
-
-No external model process is needed.
+- semantic/content locking;
+- preservation of names, dates, figures, citations, and technical terms;
+- causal and epistemic fidelity;
+- document-level reconstruction;
+- voice matching when genuine writing samples are supplied;
+- output-mode selection.
 
 ### Codex
 
-Open this repository in Codex, or copy `.agents/skills/authorship-shift/` into the `.agents/skills/` directory of another project.
-
-Example:
-
-```text
-Use AuthorshipShift to deeply rewrite this draft while preserving every factual claim, number, qualification, citation, and causal relationship. Return only the finished prose.
-```
+Open this repository in Codex, or copy `.agents/skills/authorship-shift/` into another project's `.agents/skills/` directory.
 
 ### ChatGPT
 
-If your ChatGPT surface supports personal Skill uploads, zip the `authorship-shift` directory and upload it as a Skill.
+Where personal Skill upload is supported, zip the `authorship-shift` directory and upload it as a Skill.
 
-If Skill upload is not available, use the single-file fallback:
+If Skill upload is unavailable, use:
 
 ```text
 portable/CHATGPT_PROMPT.md
 ```
 
-Attach it to a conversation or paste its contents, then provide the writing task.
+See [`portable/INSTALL.md`](portable/INSTALL.md).
 
-See [`portable/INSTALL.md`](portable/INSTALL.md) for the exact layout and usage.
+## Generation Engine v2
 
-## What the writing method preserves
+The new provider-agnostic interface is implemented in:
 
-Before changing prose, the skill silently locks:
+```text
+src/authorship_shift/engine_v2.py
+```
 
-- required factual and argumentative claims;
-- names, dates, figures, units, quotations, citations, and technical terms;
-- causal direction and comparisons;
-- qualifications, caveats, and uncertainty;
-- conclusions and recommendations;
-- unsupported inferences that must not be introduced.
+It introduces explicit generation records for:
 
-The rewrite can substantially change information order, paragraph function, sentence shape, emphasis, compression, and transitions while those protected elements remain fixed.
+- temperature;
+- top-p;
+- seed;
+- maximum token budget;
+- generation profile;
+- provider identity.
 
-## What it changes
+A provider may support all, some, or none of those controls. Recording them makes experiments reproducible and creates a clean boundary for later hosted, local, or tuned-model adapters.
 
-The skill works at the document level rather than performing synonym replacement. Depending on the material it can use structures such as:
+The engine deliberately generates a **batch** first and analyzes candidates afterward. This is different from asking one model trajectory to internally pretend that it sampled several alternatives.
 
-- claim first;
-- mechanism first;
-- evidence then judgment;
-- contrast driven;
-- chronological or causal progression;
-- compressed reasoning;
-- asymmetric emphasis.
+## Zero-cost candidate diagnostics
 
-It also removes common template-level problems such as repetitive cadence, generic openings, empty signposting, unnecessary restatement, over-balanced lists, and paragraphs that all perform the same rhetorical function.
+Routine development should not depend on paid external tests.
 
-It does **not** create naturalness by adding fake anecdotes, deliberate mistakes, invented personal experience, fabricated citations, or random slang.
+`src/authorship_shift/candidate_lab.py` measures candidate behavior with deterministic local metrics including:
 
-## Voice matching
+- sentence-length variation;
+- lexical diversity;
+- transition-start frequency;
+- repeated sentence openings;
+- sentence-opening entropy;
+- repeated trigrams;
+- source/candidate trigram overlap;
+- structural distance from the reference;
+- conservative immutable-detail coverage;
+- pairwise candidate diversity.
 
-When the user supplies genuine writing samples or explicit style preferences, AuthorshipShift treats those as the strongest style signal. It can match observable features such as directness, density, vocabulary level, contractions, fragments, humor, formality, and paragraph shape without inventing biographical details or opinions.
+These are **diagnostics, not authorship classifiers**. No individual metric is treated as a quality target.
 
-## Research harness (optional)
+Run the current regression corpus with:
 
-The repository also contains the earlier Python research harness for controlled experiments, ablations, provenance, holdout validation, and compute accounting.
+```bash
+python scripts/analyze_candidate_set.py evals/data/competition_innovation_001.json
+```
 
-That harness is now **optional research infrastructure**, not the way a normal user runs AuthorshipShift. It remains useful for studying whether structural transformations preserve meaning and writing quality, but it is not required to install or use the writing skill.
+or emit machine-readable output:
 
-Research documentation remains under `docs/`, including:
+```bash
+python scripts/analyze_candidate_set.py evals/data/competition_innovation_001.json --json
+```
+
+## Evaluation history
+
+The first live regression case is stored in two forms:
+
+```text
+evals/cases/competition_innovation_001.md
+evals/data/competition_innovation_001.json
+```
+
+The structured file includes the control and Skill v1.0-v1.3 outputs plus external observations supplied during testing. Those external values are recorded as experiment metadata only; they are not treated as ground truth or directly optimized.
+
+The result of that experiment was architectural: repeated prompt-only iteration did not provide enough generation-level control, so development moved into the engine.
+
+## Existing research harness
+
+The earlier Python pipeline remains useful and is not being discarded. It already contains:
+
+- multi-candidate generation;
+- beam/diversity selection;
+- content locks;
+- fidelity and quality judges;
+- rewrite operators;
+- ablations;
+- holdout protocols;
+- provenance and compute accounting.
+
+Engine v2 is an extraction and simplification of the parts needed for the next phase, with provider independence and zero-cost candidate analysis as first-class requirements.
+
+Historical documentation remains under `docs/`, including:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - [`docs/RESEARCH_PROTOCOL.md`](docs/RESEARCH_PROTOCOL.md)
@@ -107,11 +178,24 @@ Research documentation remains under `docs/`, including:
 - [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md)
 - [`docs/HOLDOUT_PROTOCOL.md`](docs/HOLDOUT_PROTOCOL.md)
 
-For the optional Python harness, see the historical CLI and configuration under `src/`, `configs/`, and `tests/`.
+## Fine-tuning roadmap
+
+Fine-tuning is a later step, not a prerequisite for the current engine.
+
+Before training a model or adapter, the project should first accumulate:
+
+1. a multi-domain evaluation corpus;
+2. independent candidate batches;
+3. deterministic style diagnostics;
+4. semantic-fidelity labels;
+5. accepted/rejected candidate pairs;
+6. evidence that generation controls and reranking alone have reached their limit.
+
+If tuning becomes justified, the preferred training representation is **semantic content paired with multiple valid human realizations**, rather than a simplistic `AI paragraph -> humanized paragraph` mapping.
 
 ## Scope
 
-AuthorshipShift is for writing quality, structural variation, semantic preservation, and research into text transformation. It does not guarantee a particular result from any AI-writing or authorship detector and should not be used to conceal AI assistance where disclosure is required by a school, employer, publisher, platform, or other institution.
+AuthorshipShift is for writing quality, structural and lexical variation, voice matching, semantic preservation, and research into controlled text generation. It does not guarantee a particular result from any AI-writing or authorship detector and should not be used to conceal AI assistance where disclosure is required by a school, employer, publisher, platform, or other institution.
 
 ## License
 
