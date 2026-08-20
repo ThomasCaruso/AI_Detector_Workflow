@@ -20,6 +20,7 @@ def test_portable_skill_has_agent_skills_structure():
     assert (SKILL_ROOT / "references" / "SELF_CHECK.md").exists()
     assert (SKILL_ROOT / "references" / "STRUCTURAL_RECONSTRUCTION.md").exists()
     assert (SKILL_ROOT / "references" / "LEXICAL_RECONSTRUCTION.md").exists()
+    assert (SKILL_ROOT / "references" / "CANDIDATE_RERANKING.md").exists()
     assert (ROOT / "portable" / "CHATGPT_PROMPT.md").exists()
     assert (ROOT / "portable" / "INSTALL.md").exists()
 
@@ -37,74 +38,65 @@ def test_skill_frontmatter_is_portable_and_valid():
     assert re.fullmatch(r"[a-z0-9-]{1,64}", name.group(1).strip())
     assert description and 1 <= len(description.group(1).strip()) <= 1024
     assert compatibility and "No local model" in compatibility.group(1)
-    assert version and version.group(1) == "1.2.0"
+    assert version and version.group(1) == "1.3.0"
     assert "{{" not in text and "}}" not in text
 
 
-def test_deep_rewrite_requires_reconstruction_and_architecture_audit():
+def test_v13_uses_semantic_compression_and_candidate_reranking():
     text = SKILL.read_text(encoding="utf-8")
     fallback = (ROOT / "portable" / "CHATGPT_PROMPT.md").read_text(encoding="utf-8")
+    reranking = (SKILL_ROOT / "references" / "CANDIDATE_RERANKING.md").read_text(encoding="utf-8")
 
     required_skill_phrases = [
-        "Reconstruct the document from the lock",
-        "Treat the source opening as disposable",
-        "Choose the support order from scratch",
-        "architecture and lexical audit",
-        "Did it preserve the source sentence order too closely?",
+        "Compress the source into content atoms",
+        "Use local candidate reranking",
+        "at least three materially different constructions",
+        "Run one restraint pass",
+        "Do not keep polishing",
     ]
     for phrase in required_skill_phrases:
         assert phrase in text
 
     required_fallback_phrases = [
-        "Reconstruct at the document level",
-        "Treat the source opening as disposable",
-        "Choose the support order from scratch",
-        "Architecture and lexical audit",
+        "Compress into content atoms",
+        "Use local candidate reranking",
+        "at least three materially different constructions",
+        "Run one restraint pass",
     ]
     for phrase in required_fallback_phrases:
         assert phrase in fallback
 
-
-def test_lexical_reconstruction_is_content_driven_not_synonym_spinning():
-    text = SKILL.read_text(encoding="utf-8")
-    lexical = (SKILL_ROOT / "references" / "LEXICAL_RECONSTRUCTION.md").read_text(encoding="utf-8")
-    fallback = (ROOT / "portable" / "CHATGPT_PROMPT.md").read_text(encoding="utf-8")
-
-    required_skill_phrases = [
-        "Build from lexical anchors",
-        "content-bearing nouns and verbs",
-        "could be moved unchanged into many unrelated essays",
-        "Do not replace a simple word with a rarer synonym merely to create variety",
-    ]
-    for phrase in required_skill_phrases:
-        assert phrase in text
-
     required_reference_phrases = [
-        "Remove abstract wrappers",
-        "Prefer content-bearing verbs",
-        "Prefer domain nouns over analytical nouns",
-        "Do not synonym-spin",
-        "Draft from lexical anchors",
-        "Lexical audit",
+        "Start from content atoms",
+        "Generate materially different candidates",
+        "Rank for fit, not rarity",
+        "Use a neighborhood check",
+        "Stop after selection",
     ]
     for phrase in required_reference_phrases:
-        assert phrase in lexical
-
-    assert "could be moved almost unchanged into many unrelated essays" in fallback
-    assert "Do not synonym-spin" in fallback
+        assert phrase in reranking
 
 
-def test_first_eval_case_is_recorded():
-    case = ROOT / "evals" / "cases" / "competition_innovation_001.md"
-    assert case.exists()
-    text = case.read_text(encoding="utf-8")
-    assert "QuillBot AI detector" in text
-    assert "Pangram" in text
-    assert "descriptive test metadata only" in text
-    assert "The opening was copied exactly" in text
-    assert "AuthorshipShift v1.1 | 23% AI | 100% AI" in text
-    assert "v1.1 lexical failure" in text
-    assert "v1.2 change under test" in text
+def test_v13_does_not_claim_tokenizer_or_sampling_control():
+    reranking = (SKILL_ROOT / "references" / "CANDIDATE_RERANKING.md").read_text(encoding="utf-8")
+    assert "cannot directly change the host model's tokenizer, logits, temperature, top-p, or sampling implementation" in reranking
+    assert "does not provide direct access to token probabilities" in reranking
+
+
+def test_eval_cases_record_progress_and_regression():
+    first = ROOT / "evals" / "cases" / "competition_innovation_001.md"
+    second = ROOT / "evals" / "cases" / "competition_innovation_002.md"
+    assert first.exists()
+    assert second.exists()
+
+    first_text = first.read_text(encoding="utf-8")
+    second_text = second.read_text(encoding="utf-8")
+
+    assert "AuthorshipShift v1.1 | 23% AI | 100% AI" in first_text
+    assert "AuthorshipShift v1.2 | 63% AI | not run" in second_text
+    assert "limited external-testing budget" in second_text
+    assert "Direction for v1.3" in second_text
+    assert "candidate-selection or reranking layer" in second_text
 
 
 def test_primary_readme_does_not_require_local_inference():
