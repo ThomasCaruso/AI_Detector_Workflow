@@ -1,0 +1,39 @@
+{
+  "provider": "ollama",
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "models": ["gemma3", "qwen3:8b"],
+    "temperature": 0.8,
+    "judge_model": "gemma3"
+  },
+  "generation": {
+    "plans": 2,
+    "drafts_per_plan": 1,
+    "beam_width": 2,
+    "beam_rounds": 1,
+    "operators_per_candidate": 1,
+    "operators": [
+      "claim_first",
+      "mechanism_first",
+      "contrast_driven",
+      "compressed_reasoning",
+      "asymmetric_structure",
+      "evidence_then_judgment"
+    ]
+  },
+  "gates": {
+    "minimum_fidelity": 0.96,
+    "minimum_quality_delta": 0.0,
+    "diversity_weight": 0.25
+  },
+  "ablation": {
+    "max_development_samples": 3,
+    "default_variants": ["baseline", "planning_revision", "full"]
+  },
+  "external_evaluation": {
+    "development_queries_allowed": 0,
+    "milestone_queries_budget": 0,
+    "require_frozen_candidate": true,
+    "target_detectors": []
+  }
+}
