@@ -1,0 +1,12 @@
+{
+  "development": [
+    "business/northlake_logistics_case.txt",
+    "science/synthetic_sleep_restriction_study.txt",
+    "technology/synthetic_payments_incident.txt"
+  ],
+  "holdout": [],
+  "metadata": {
+    "method": "smoke_all_development",
+    "purpose": "Force the v0.8 smoke harness to exercise all three synthetic samples regardless of any corpus/split.json present in the local workspace."
+  }
+}
