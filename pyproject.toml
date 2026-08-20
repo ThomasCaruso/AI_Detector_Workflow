@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "authorship-shift"
 version = "0.8.0"
-description = "A quality-preserving research harness for studying AI-text detector robustness under distribution shift."
+description = "A portable writing interface and provider-agnostic research engine for controlled text transformation with semantic fidelity."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
