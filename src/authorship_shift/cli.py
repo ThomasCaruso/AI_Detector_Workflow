@@ -13,6 +13,7 @@ from .corpus import build_manifest, split_directory, validate_manifest
 from .decision import analyze_suite, write_decision_report
 from .diversity import summarize_diversity
 from .experiment import Experiment
+from .holdout import prepare_holdout_lock, run_holdout_validation, verify_holdout_lock
 from .metrics import measure, structural_distance
 from .models import Candidate, ExternalResult, read_json
 from .pipeline import run_pipeline
@@ -228,6 +229,41 @@ def cmd_audit(args):
         raise RuntimeError("Integrity audit failed; inspect the generated report.")
 
 
+def cmd_prepare_holdout(args):
+    path = prepare_holdout_lock(
+        args.corpus,
+        args.development_suite,
+        args.output,
+        split_file=args.split,
+        slots=args.slots,
+        variants=args.variants,
+    )
+    verification = verify_holdout_lock(path)
+    print(path)
+    print(f"Locked {verification['sample_count']} holdout samples for variants: {', '.join(verification['selected_variants'])}")
+
+
+def cmd_check_holdout(args):
+    verification = verify_holdout_lock(args.lock)
+    print(json.dumps(verification, indent=2))
+    if not verification["ok"]:
+        raise RuntimeError("Holdout lock verification failed")
+
+
+def cmd_run_holdout(args):
+    config = _load_config(args.config)
+    providers, judge = _ollama_providers(config, args)
+    state = run_holdout_validation(
+        args.lock,
+        providers,
+        judge_provider=judge,
+        base_config=config,
+        max_runs=args.max_runs,
+        resume=args.resume,
+    )
+    print(json.dumps(state, indent=2))
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="authorship-shift")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -273,6 +309,15 @@ def build_parser():
 
     s = sub.add_parser("audit", help="Verify experiment hashes, frozen candidates, external records, and suite integrity")
     s.add_argument("--target", required=True); s.add_argument("--suite", action="store_true"); s.add_argument("--output"); s.set_defaults(func=cmd_audit)
+
+    s = sub.add_parser("prepare-holdout", help="Lock holdout samples and development-selected variants before validation")
+    s.add_argument("--corpus", required=True); s.add_argument("--development-suite", required=True); s.add_argument("--split", required=True); s.add_argument("--output", required=True); s.add_argument("--slots", type=int, default=3); s.add_argument("--variants"); s.set_defaults(func=cmd_prepare_holdout)
+
+    s = sub.add_parser("check-holdout", help="Verify that a holdout lock, split, decision, and samples are unchanged")
+    s.add_argument("--lock", required=True); s.set_defaults(func=cmd_check_holdout)
+
+    s = sub.add_parser("run-holdout", help="Run only the locked local holdout validation suite")
+    s.add_argument("--lock", required=True); s.add_argument("--config", default="configs/default.json"); s.add_argument("--model"); s.add_argument("--models"); s.add_argument("--judge-model"); s.add_argument("--max-runs", type=int); s.add_argument("--no-resume", dest="resume", action="store_false"); s.set_defaults(func=cmd_run_holdout, resume=True)
     return p
 
 
