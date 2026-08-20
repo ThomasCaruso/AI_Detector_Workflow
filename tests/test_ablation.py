@@ -48,7 +48,22 @@ def test_plan_uses_development_split_only(tmp_path):
     plan = build_ablation_plan(corpus, variants="baseline,full")
     assert plan["sample_count"] == 1
     assert plan["task_count"] == 2
-    assert all("dev.txt" in task["source_path"] for task in plan["tasks"])
+    assert all(task["source_path"] == "dev.txt" for task in plan["tasks"])
+
+
+def test_sample_identity_is_stable_across_clone_locations(tmp_path):
+    plans = []
+    for clone_name in ("clone_a", "clone_b"):
+        corpus = tmp_path / clone_name / "corpus"
+        sample_dir = corpus / "science"
+        sample_dir.mkdir(parents=True)
+        (sample_dir / "same_sample.txt").write_text("same content", encoding="utf-8")
+        plans.append(build_ablation_plan(corpus, variants="baseline"))
+
+    a = plans[0]["tasks"][0]
+    b = plans[1]["tasks"][0]
+    assert a["source_path"] == b["source_path"] == "science/same_sample.txt"
+    assert a["sample_id"] == b["sample_id"]
 
 
 def test_ablation_suite_runs_and_forces_zero_external_budget(tmp_path):
@@ -63,6 +78,7 @@ def test_ablation_suite_runs_and_forces_zero_external_budget(tmp_path):
     for row in result["runs"]:
         config = json.loads((Path(row["experiment_root"]) / "config.json").read_text(encoding="utf-8"))
         assert config["external_evaluation"]["milestone_queries_budget"] == 0
+        assert row["source_path"] == "sample.txt"
         assert row["total_model_calls"] > 0
         assert row["elapsed_seconds"] >= 0
         assert (Path(row["experiment_root"]) / "pipeline_stats.json").exists()
