@@ -63,4 +63,9 @@ def test_ablation_suite_runs_and_forces_zero_external_budget(tmp_path):
     for row in result["runs"]:
         config = json.loads((Path(row["experiment_root"]) / "config.json").read_text(encoding="utf-8"))
         assert config["external_evaluation"]["milestone_queries_budget"] == 0
-    assert {row["variant"] for row in aggregate_by_variant(result["runs"])} == {"baseline", "planning_only"}
+        assert row["total_model_calls"] > 0
+        assert row["elapsed_seconds"] >= 0
+        assert (Path(row["experiment_root"]) / "pipeline_stats.json").exists()
+    aggregates = aggregate_by_variant(result["runs"])
+    assert {row["variant"] for row in aggregates} == {"baseline", "planning_only"}
+    assert all(row["mean_model_calls"] > 0 for row in aggregates)
