@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+- Added per-stage local model-call instrumentation and `pipeline_stats.json`.
+- Added wall-clock runtime tracking for every pipeline run.
+- Recorded generator/judge identities and active pipeline feature flags with each run.
+- Added regression tests for call accounting on both the full beam path and the direct baseline.
+- External detector budgets remain unchanged; this instrumentation consumes no detector queries.
+
 ## 0.3.0
 
 - Added a first-class component-ablation engine for zero-external-query development.
