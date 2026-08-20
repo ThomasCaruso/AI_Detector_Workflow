@@ -31,6 +31,23 @@ def _selected_variants(decision: dict[str, Any], slots: int) -> list[str]:
     return names[:slots]
 
 
+def _partition_payload(lock: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "development": [str(sample["path"]) for sample in lock.get("samples", [])],
+        "holdout": [],
+        "metadata": {
+            "method": "locked_holdout_rebound_as_validation_partition",
+            "source_split": str(lock.get("split_file", "")),
+            "source_split_sha256": lock.get("split_sha256"),
+            "sample_hashes": {str(sample["path"]): sample.get("sha256") for sample in lock.get("samples", [])},
+        },
+    }
+
+
+def _directory_has_payload(path: Path) -> bool:
+    return path.exists() and any(path.iterdir())
+
+
 def prepare_holdout_lock(
     corpus_dir: str | Path,
     development_suite: str | Path,
@@ -47,6 +64,11 @@ def prepare_holdout_lock(
     lock_path = output_root / "holdout_lock.json"
     if lock_path.exists():
         raise FileExistsError(f"Holdout lock already exists: {lock_path}")
+    if _directory_has_payload(output_root / "suite"):
+        raise FileExistsError(
+            f"Holdout suite directory already contains data: {output_root / 'suite'}. "
+            "Use a fresh output directory for a new lock."
+        )
 
     split_path = Path(split_file).resolve()
     split = read_json(split_path)
@@ -81,7 +103,7 @@ def prepare_holdout_lock(
         })
 
     payload: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_at": time.time(),
         "corpus_root": str(corpus_root),
         "development_suite": str(development_root),
@@ -94,18 +116,11 @@ def prepare_holdout_lock(
         "samples": samples,
         "external_detector_queries_allowed": 0,
     }
+    partition = _partition_payload(payload)
+    payload["partition_sha256"] = canonical_json_sha256(partition)
     payload["lock_fingerprint"] = canonical_json_sha256({k: v for k, v in payload.items() if k != "created_at"})
     write_json(lock_path, payload)
-    write_json(output_root / "holdout_partition.json", {
-        "development": [sample["path"] for sample in samples],
-        "holdout": [],
-        "metadata": {
-            "method": "locked_holdout_rebound_as_validation_partition",
-            "source_split": str(split_path),
-            "source_split_sha256": payload["split_sha256"],
-            "lock_fingerprint": payload["lock_fingerprint"],
-        },
-    })
+    write_json(output_root / "holdout_partition.json", partition)
     return lock_path
 
 
@@ -135,6 +150,19 @@ def verify_holdout_lock(lock_path: str | Path) -> dict[str, Any]:
         elif sha256_file(sample_path) != sample.get("sha256"):
             errors.append(f"holdout sample changed after lock: {sample_path}")
 
+    expected_partition = _partition_payload(lock)
+    expected_partition_hash = canonical_json_sha256(expected_partition)
+    recorded_partition_hash = lock.get("partition_sha256")
+    if recorded_partition_hash and expected_partition_hash != recorded_partition_hash:
+        errors.append("locked partition metadata hash mismatch")
+    partition_path = path.parent / "holdout_partition.json"
+    if not partition_path.exists():
+        errors.append("holdout_partition.json is missing")
+    else:
+        actual_partition = read_json(partition_path)
+        if canonical_json_sha256(actual_partition) != expected_partition_hash:
+            errors.append("holdout_partition.json changed after lock")
+
     expected_fingerprint = canonical_json_sha256({k: v for k, v in lock.items() if k not in {"created_at", "lock_fingerprint"}})
     if expected_fingerprint != lock.get("lock_fingerprint"):
         errors.append("holdout lock metadata fingerprint mismatch")
@@ -146,6 +174,7 @@ def verify_holdout_lock(lock_path: str | Path) -> dict[str, Any]:
         "sample_count": len(lock.get("samples", [])),
         "selected_variants": list(lock.get("selected_variants", [])),
         "lock_fingerprint": lock.get("lock_fingerprint"),
+        "partition_sha256": expected_partition_hash,
     }
 
 
@@ -164,6 +193,12 @@ def run_holdout_validation(
         raise RuntimeError("Holdout lock verification failed: " + "; ".join(verification["errors"]))
     lock = read_json(lock_path)
     root = lock_path.parent
+
+    # Reconstruct the execution partition from the lock immediately before use.
+    # This prevents an editable helper file from becoming a hidden source of validation drift.
+    partition_path = root / "holdout_partition.json"
+    write_json(partition_path, _partition_payload(lock))
+
     config = deepcopy(base_config or {})
     config.setdefault("external_evaluation", {})
     config["external_evaluation"]["development_queries_allowed"] = 0
@@ -171,6 +206,7 @@ def run_holdout_validation(
     config["holdout_validation"] = {
         "lock_fingerprint": lock["lock_fingerprint"],
         "source_split_sha256": lock["split_sha256"],
+        "partition_sha256": verification["partition_sha256"],
         "selected_variants": lock["selected_variants"],
     }
     suite_root = root / "suite"
@@ -181,7 +217,7 @@ def run_holdout_validation(
         judge_provider=judge_provider,
         base_config=config,
         variants=lock["selected_variants"],
-        split_file=root / "holdout_partition.json",
+        split_file=partition_path,
         max_samples=None,
         max_runs=max_runs,
         resume=resume,
@@ -189,6 +225,7 @@ def run_holdout_validation(
     state = {
         "updated_at": time.time(),
         "lock_fingerprint": lock["lock_fingerprint"],
+        "partition_sha256": verification["partition_sha256"],
         "planned_runs": result["planned_runs"],
         "completed_runs": result["completed_runs"],
         "complete": result["completed_runs"] >= result["planned_runs"],
