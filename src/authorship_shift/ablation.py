@@ -66,7 +66,11 @@ def resolve_variants(names: str | Iterable[str] | None) -> list[AblationVariant]
 
 def _resolve_split_entry(corpus_root: Path, entry: str) -> Path:
     raw = Path(entry)
-    for candidate in (raw, corpus_root / raw, corpus_root / raw.name):
+    if raw.is_absolute():
+        candidates = (raw,)
+    else:
+        candidates = (corpus_root / raw, corpus_root / raw.name, raw)
+    for candidate in candidates:
         if candidate.exists() and candidate.is_file():
             return candidate.resolve()
     raise FileNotFoundError(f"Corpus split entry cannot be resolved: {entry}")
