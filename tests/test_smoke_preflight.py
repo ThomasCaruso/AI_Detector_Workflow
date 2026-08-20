@@ -19,23 +19,29 @@ def test_checked_in_smoke_corpus_and_config_are_offline_ready(tmp_path):
     validation = validate_manifest(manifest_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     config = json.loads((PROJECT_ROOT / "configs" / "smoke.json").read_text(encoding="utf-8"))
+    split_file = PROJECT_ROOT / "configs" / "smoke_split.json"
+    split = json.loads(split_file.read_text(encoding="utf-8"))
 
     assert validation["ok"] is True
     assert validation["errors"] == []
     assert manifest["sample_count"] == 3
     assert {entry["genre"] for entry in manifest["entries"]} == {"business", "science", "technology"}
     assert all(entry["word_count"] >= 250 for entry in manifest["entries"])
+    assert split["holdout"] == []
+    assert set(split["development"]) == {entry["path"] for entry in manifest["entries"]}
 
     variants = ",".join(config["ablation"]["default_variants"])
     plan = build_ablation_plan(
         corpus,
         variants=variants,
+        split_file=split_file,
         max_samples=config["ablation"]["max_development_samples"],
     )
     estimate = estimate_ablation_suite(
         corpus,
         config,
         variants=variants,
+        split_file=split_file,
         max_samples=config["ablation"]["max_development_samples"],
     )
 
