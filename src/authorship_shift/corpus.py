@@ -5,21 +5,46 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 import json
+import os
 
 from .metrics import measure
 from .provenance import sha256_file
 
 
-def deterministic_split(files: list[Path], *, holdout_fraction: float = 0.2, seed: str = "authorship-shift") -> dict[str, list[str]]:
+def _portable_reference(base_dir: Path, target: Path) -> str:
+    """Return a relocatable path when base and target share a filesystem."""
+    base = base_dir.resolve()
+    resolved = target.resolve()
+    try:
+        return Path(os.path.relpath(resolved, base)).as_posix()
+    except ValueError:
+        # Windows can raise when paths live on different drives. Preserve the
+        # absolute path rather than producing an invalid reference.
+        return str(resolved)
+
+
+def deterministic_split(
+    files: list[Path],
+    *,
+    holdout_fraction: float = 0.2,
+    seed: str = "authorship-shift",
+    base_dir: str | Path | None = None,
+) -> dict[str, list[str]]:
     if not 0 < holdout_fraction < 1:
         raise ValueError("holdout_fraction must be between 0 and 1")
+    root = Path(base_dir).resolve() if base_dir is not None else None
     train: list[str] = []
     holdout: list[str] = []
     cutoff = int(holdout_fraction * 10_000)
-    for path in sorted(files, key=lambda p: str(p)):
-        digest = sha256(f"{seed}:{path.name}".encode("utf-8")).hexdigest()
+    keyed: list[tuple[str, Path]] = []
+    for raw in files:
+        path = Path(raw)
+        ref = _portable_reference(root, path) if root is not None else path.as_posix()
+        keyed.append((ref, path))
+    for ref, _ in sorted(keyed, key=lambda item: item[0]):
+        digest = sha256(f"{seed}:{ref}".encode("utf-8")).hexdigest()
         bucket = int(digest[:8], 16) % 10_000
-        (holdout if bucket < cutoff else train).append(str(path))
+        (holdout if bucket < cutoff else train).append(ref)
     return {"development": train, "holdout": holdout}
 
 
@@ -38,6 +63,7 @@ def _genre(root: Path, path: Path) -> str:
 
 def build_manifest(directory: str | Path, *, output: str | Path | None = None) -> Path:
     root = Path(directory).resolve()
+    out = (Path(output) if output else root / "corpus_manifest.json").resolve()
     files = sorted(path for path in root.rglob("*.txt") if path.is_file())
     entries: list[dict[str, Any]] = []
     hashes: dict[str, list[str]] = defaultdict(list)
@@ -59,12 +85,11 @@ def build_manifest(directory: str | Path, *, output: str | Path | None = None) -
     duplicate_groups = [paths for paths in hashes.values() if len(paths) > 1]
     manifest = {
         "schema_version": 1,
-        "root": str(root),
+        "root": _portable_reference(out.parent, root),
         "sample_count": len(entries),
         "entries": entries,
         "duplicate_hash_groups": duplicate_groups,
     }
-    out = Path(output) if output else root / "corpus_manifest.json"
     out.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return out
 
@@ -165,9 +190,10 @@ def stratified_split(
 
 
 def validate_manifest(manifest_path: str | Path) -> dict[str, Any]:
-    path = Path(manifest_path)
+    path = Path(manifest_path).resolve()
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    root = Path(manifest.get("root") or path.parent)
+    stored_root = Path(str(manifest.get("root") or "."))
+    root = stored_root if stored_root.is_absolute() else (path.parent / stored_root).resolve()
     errors: list[str] = []
     warnings: list[str] = []
     seen_paths: set[str] = set()
@@ -208,17 +234,17 @@ def split_directory(
     manifest_path: str | Path | None = None,
 ) -> Path:
     root = Path(directory).resolve()
-    out = Path(output) if output else root / "split.json"
+    out = (Path(output) if output else root / "split.json").resolve()
     if stratify:
-        manifest_file = Path(manifest_path) if manifest_path else root / "corpus_manifest.json"
+        manifest_file = (Path(manifest_path) if manifest_path else root / "corpus_manifest.json").resolve()
         if not manifest_file.exists():
             manifest_file = build_manifest(root, output=manifest_file)
         manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
         result = stratified_split(manifest, holdout_fraction=holdout_fraction, seed=seed)
-        result["metadata"]["manifest"] = str(manifest_file)
+        result["metadata"]["manifest"] = _portable_reference(out.parent, manifest_file)
         result["metadata"]["manifest_sha256"] = sha256_file(manifest_file)
     else:
         files = [p for p in root.rglob("*.txt") if p.is_file()]
-        result = deterministic_split(files, holdout_fraction=holdout_fraction, seed=seed)
+        result = deterministic_split(files, holdout_fraction=holdout_fraction, seed=seed, base_dir=root)
     out.write_text(json.dumps(result, indent=2), encoding="utf-8")
     return out

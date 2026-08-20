@@ -1,6 +1,6 @@
 import json
 
-from authorship_shift.corpus import build_manifest, stratified_split, validate_manifest
+from authorship_shift.corpus import build_manifest, split_directory, stratified_split, validate_manifest
 
 
 def test_manifest_and_stratified_split_preserve_genre_coverage(tmp_path):
@@ -37,3 +37,32 @@ def test_singleton_strata_still_produce_nonempty_partitions(tmp_path):
     assert split["holdout"]
     assert len(split["development"]) + len(split["holdout"]) == 4
     assert not (set(split["development"]) & set(split["holdout"]))
+
+
+def test_manifest_remains_valid_after_corpus_directory_moves(tmp_path):
+    corpus = tmp_path / "corpus"
+    folder = corpus / "business"
+    folder.mkdir(parents=True)
+    (folder / "sample.txt").write_text(("portable corpus sample " * 30).strip(), encoding="utf-8")
+
+    manifest_path = build_manifest(corpus)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["root"] == "."
+
+    moved = tmp_path / "moved_corpus"
+    corpus.rename(moved)
+    assert validate_manifest(moved / "corpus_manifest.json")["ok"] is True
+
+
+def test_stratified_split_records_portable_manifest_reference(tmp_path):
+    corpus = tmp_path / "corpus"
+    for genre in ("business", "science"):
+        folder = corpus / genre
+        folder.mkdir(parents=True)
+        (folder / "sample.txt").write_text((f"{genre} sample " * 30).strip(), encoding="utf-8")
+
+    build_manifest(corpus)
+    split_path = split_directory(corpus, holdout_fraction=0.2, seed="portable", stratify=True)
+    split = json.loads(split_path.read_text(encoding="utf-8"))
+
+    assert split["metadata"]["manifest"] == "corpus_manifest.json"

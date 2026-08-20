@@ -20,7 +20,7 @@ The system keeps three objectives separate:
 2. **Writing quality** — a candidate cannot improve by becoming worse prose.
 3. **External detector behavior** — measured only at predetermined milestones.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/RESEARCH_PROTOCOL.md`](docs/RESEARCH_PROTOCOL.md), [`docs/ABLATIONS.md`](docs/ABLATIONS.md), [`docs/DECISION_ENGINE.md`](docs/DECISION_ENGINE.md), [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md), [`docs/CORPUS_AND_COMPUTE.md`](docs/CORPUS_AND_COMPUTE.md), and [`docs/HOLDOUT_PROTOCOL.md`](docs/HOLDOUT_PROTOCOL.md).
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/RESEARCH_PROTOCOL.md`](docs/RESEARCH_PROTOCOL.md), [`docs/ABLATIONS.md`](docs/ABLATIONS.md), [`docs/DECISION_ENGINE.md`](docs/DECISION_ENGINE.md), [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md), [`docs/CORPUS_AND_COMPUTE.md`](docs/CORPUS_AND_COMPUTE.md), [`docs/HOLDOUT_PROTOCOL.md`](docs/HOLDOUT_PROTOCOL.md), and [`docs/SMOKE_TEST.md`](docs/SMOKE_TEST.md).
 
 ## Zero-spend development
 
@@ -67,6 +67,36 @@ authorship-shift report --experiment experiments/product_distribution
 
 Model names are examples; use models installed in your local Ollama environment.
 
+## First empirical smoke test
+
+v0.8 includes a deliberately small preflight corpus and configuration so the first real run can test the complete local workflow before the development corpus is expanded.
+
+```text
+3 synthetic source documents
+×
+3 variants: baseline, planning_revision, full
+=
+9 local runs
+```
+
+The checked-in topology has a conservative upper bound of **123 local model calls** for all nine runs and **41 calls** for the first one-source/three-variant batch. External-detector budget is zero.
+
+Preview and estimate the exact pinned matrix:
+
+```bash
+authorship-shift ablation-plan --corpus corpus --output ablations/smoke_v08 --config configs/smoke.json --split configs/smoke_split.json
+
+authorship-shift estimate-ablation --corpus corpus --output ablations/smoke_v08 --config configs/smoke.json --split configs/smoke_split.json
+```
+
+Run only the first paired batch initially:
+
+```bash
+authorship-shift ablate --corpus corpus --output ablations/smoke_v08 --config configs/smoke.json --split configs/smoke_split.json --models "gemma3,qwen3:8b" --judge-model gemma3 --max-runs 3
+```
+
+`configs/smoke_split.json` intentionally puts all three synthetic samples in development so a stale local `corpus/split.json` cannot silently alter the smoke matrix. See [`docs/SMOKE_TEST.md`](docs/SMOKE_TEST.md) for the inspection criteria and resume procedure.
+
 ## Build and validate the corpus
 
 Organize samples by genre when possible:
@@ -99,6 +129,8 @@ authorship-shift split-corpus corpus --holdout 0.2 --seed v1 --stratify
 ```
 
 The split stores the manifest SHA-256 so the development/holdout assignment is tied to an exact corpus state. For corpora made entirely of singleton strata, v0.8 deterministically rebalances one sample when necessary so a corpus with at least two samples cannot silently produce an empty development or holdout partition.
+
+Corpus manifests, deterministic split references, and ablation sample identities use portable corpus-relative references in normal same-filesystem layouts. Moving or cloning the project therefore does not change sample identity merely because its parent directory changed.
 
 ## Component ablations
 
@@ -198,7 +230,7 @@ authorship-shift run-holdout \
 
 The lock fingerprints the source split, development decision, selected variants, every holdout text, and the exact execution partition. If the split, decision, a sample, lock metadata, or `holdout_partition.json` changes after locking, validation refuses to run. Immediately before a verified holdout run, the execution partition is reconstructed from the lock rather than trusted as mutable input.
 
-A fresh lock also refuses to reuse a non-empty prior holdout `suite/` directory. The baseline is automatically included for paired held-out comparison. External detector budgets remain zero throughout this phase.
+New v0.8 schema-v3 locks store portable relative references when possible, so moving the research package without changing its contents does not invalidate the lock fingerprint. Legacy schema-v2 absolute-path locks remain verifiable. A fresh lock also refuses to reuse a non-empty prior holdout `suite/` directory. The baseline is automatically included for paired held-out comparison. External detector budgets remain zero throughout this phase.
 
 ## Tamper-evident experiment records
 
@@ -235,7 +267,11 @@ Before recording, the repository verifies that the frozen file still exactly mat
 ## Recommended research order
 
 ```text
-index + validate corpus
+small offline smoke preflight
+        ↓
+3 × 3 local smoke execution
+        ↓
+expand + index corpus
         ↓
 stratified development/holdout split
         ↓
