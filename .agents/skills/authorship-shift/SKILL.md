@@ -4,132 +4,97 @@ description: Rewrite, draft, or revise prose so it is less formulaic, more natur
 license: MIT
 compatibility: Works in OpenAI Codex and other Agent Skills-compatible clients. No local model, Python package, API key, or network access required.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   project: "AuthorshipShift"
 ---
 
 # AuthorshipShift
 
-Use the host model itself to perform the entire workflow. Do not call a local model or require Ollama.
+Use the host model itself. Do not call a local model or require Ollama.
 
 ## Default behavior
 
-When the user supplies prose to rewrite, return the finished prose only unless they ask for analysis, alternatives, or an audit.
+Return finished prose only unless the user asks for analysis, alternatives, or an audit.
 
-When the user asks for a new draft from notes, requirements, or source material, preserve all supplied constraints and produce the finished draft directly.
+The goal is not to decorate a draft. Rebuild the writing from its meaning while preserving every required fact, relationship, qualification, and constraint.
 
 ## Workflow
 
-### 1. Build a silent content lock
+### 1. Build a silent semantic lock
 
-Before rewriting, identify internally:
+Internally capture:
 
-- the purpose and intended audience;
-- every required factual or argumentative claim;
-- exact names, dates, figures, quoted language, citations, technical terms, and other immutable details;
+- purpose and audience;
+- required claims;
+- exact names, dates, figures, quotations, citations, technical terms, and other immutable details;
 - causal relationships and comparisons;
-- qualifications, caveats, uncertainty, and epistemic strength;
-- conclusions and recommendations;
-- facts or implications that must not be invented.
+- caveats, uncertainty, and level of certainty;
+- required conclusions or recommendations;
+- anything that must not be invented.
 
-Do not expose this lock unless the user asks for an audit.
+### 2. Compress the source into content atoms
 
-### 2. Reconstruct the document from the lock
+Before drafting, reduce the material internally to terse fragments rather than polished sentences. Keep meaning, not wording.
 
-Do not perform sentence-by-sentence synonym replacement. In deep-rewrite mode, stop following the source sentence order once the content lock is complete. Draft from the locked ideas and the logic of the subject instead.
+Example shape:
 
-Treat the source opening as disposable unless it contains immutable language or is genuinely the strongest entry point. Reconsider where the piece should begin: the central implication, a concrete mechanism, a constraint, a contrast, or the main claim.
+`customers can switch / rival ships better product / margin pressure / uncertain R&D becomes rational / bottlenecks become urgent / short-term competition can damage basic research`
 
-Choose the support order from scratch. Useful structures include:
+Do not preserve the source opening, sentence sequence, transition language, or clause structure unless one of those is genuinely required.
 
-- claim first;
-- mechanism first;
-- evidence then judgment;
-- contrast driven;
-- consequence then explanation;
-- compressed reasoning;
-- asymmetric structure;
-- chronological or causal progression when the source requires it.
+This semantic-compression step is mandatory for deep rewrites and new drafts from highly structured prompts.
 
-Preserve every required point, but do not give each point equal space simply because it appears in the prompt. Let the most consequential or difficult idea carry more weight and compress secondary points when clarity allows.
+### 3. Choose the document shape from the atoms
 
-The structure should emerge from the subject, not from a fixed template. Vary where explanation, qualification, example, and conclusion appear when doing so improves the piece.
+Decide what deserves emphasis and in what order. Do not automatically use thesis → reason 1 → reason 2 → reason 3 → counterpoint → balanced conclusion.
 
-See `references/WRITING_METHOD.md` for the general method and `references/STRUCTURAL_RECONSTRUCTION.md` when a rewrite remains polished but overly orderly.
+A strong shape may begin with a mechanism, concrete consequence, tension, example, or claim. Preserve every requested point, but do not allocate equal space merely because the prompt lists points evenly.
 
-### 3. Build from lexical anchors
+### 4. Use local candidate reranking
 
-Before polishing sentences, identify a few content-bearing nouns and verbs for each major idea. These should come from the subject itself rather than from generic analytical vocabulary.
+For each major sentence or sentence cluster, silently consider at least three materially different constructions before committing.
 
-Prefer sentences built around concrete actions and objects when the content supports them. For example, a rival can `ship`, a customer can `switch`, a manager can `fund` or `defer`, a process can `cut` labor hours, and an API can `retry`. Do not replace a simple word with a rarer synonym merely to create variety.
+The candidates must differ in more than synonyms. Change at least two of:
 
-If a major sentence could be moved unchanged into many unrelated essays, silently produce at least two materially different renderings and choose the one that is more content-specific while remaining clear and faithful.
+- grammatical subject;
+- main verb;
+- information order;
+- clause structure;
+- level of abstraction;
+- whether a transition is needed;
+- whether two related ideas belong in one sentence or separate sentences.
 
-See `references/LEXICAL_RECONSTRUCTION.md` for the detailed lexical method.
+Choose the candidate that is clearest, most specific to the actual subject, least dependent on generic analytical scaffolding, and least repetitive relative to nearby sentences.
 
-### 4. Draft naturally
+Do not choose obscure vocabulary merely because it is less common.
 
-Apply these rules:
+See `references/CANDIDATE_RERANKING.md` for the detailed method.
 
-- Prefer specific nouns and verbs over vague abstraction.
-- Let sentence length follow the thought rather than forcing artificial variation.
-- Let paragraph length follow paragraph function.
-- Remove empty signposting and repeated summaries.
-- Avoid mechanical three-part lists unless the content genuinely has three parts.
-- Avoid inflated vocabulary when a simpler word is more exact.
-- Do not force every paragraph into topic sentence → explanation → mini-conclusion.
-- Do not require every sentence to perform exactly one rhetorical job. Combine evidence, judgment, mechanism, or qualification when they naturally belong together.
-- Use transitions only when the logical relationship is not already clear from adjacency.
-- Do not lean repeatedly on generic frames such as `X works the same way`, `X can also`, `The result can be`, `X is a useful example`, `Even with those limits`, or polished `not only X, but Y` constructions. Keep one when it is genuinely the clearest formulation; otherwise state the underlying mechanism directly.
-- Keep useful repetition when terminology or reasoning requires it.
-- Preserve the source's degree of confidence. Do not turn “may,” “suggests,” or “is associated with” into certainty.
-- Do not fabricate anecdotes, personal experience, quotes, citations, typos, slang, or factual detail to make prose seem more human.
-- Do not insert deliberate errors or awkwardness.
+### 5. Draft in a stable voice
 
-### 5. Run a global revision
+If the user provides writing samples, use them as the strongest style signal. Match observable features such as directness, density, sentence shape, vocabulary, contractions, fragments, humor, formality, and paragraph shape.
 
-Read the draft as a complete document rather than as isolated sentences. Fix:
+Without a voice sample, default to plain, specific prose rather than generic school-essay exposition. Let the subject supply the nouns and verbs.
 
-- repetitive cadence;
-- unnecessary restatement;
-- paragraphs or sentences that perform suspiciously uniform rhetorical jobs;
-- repeated transition scaffolding;
-- repeated mirrored contrasts or list structures;
-- abstract wrappers that could be replaced by a direct action or concrete object;
-- over-explained conclusions;
-- generic openings or closings;
-- abrupt changes in logic;
-- places where the language became more certain or less precise than the source.
+Do not fabricate anecdotes, personal experience, quotes, citations, slang, errors, or biographical detail.
 
-Do not polish away useful irregularity that comes naturally from the content.
+### 6. Run one restraint pass
 
-### 6. Run an architecture and lexical audit
+Read the piece once as a whole. Revise only clear problems:
 
-Internally reduce the draft to a short sequence of rhetorical functions, for example:
+- repeated sentence openings or grammatical shapes;
+- unnecessary transition scaffolding;
+- a copied or generic opening;
+- repeated abstract wrappers where a concrete action is available;
+- mechanically balanced lists or contrasts;
+- a conclusion that simply restates the thesis;
+- accidental changes in certainty or causality.
 
-`claim → reason A → reason B → reason C → caveat → thesis restatement`
+Do not keep polishing after the prose is clear and faithful. Excessive cleanup can make every sentence equally smooth and restore the template the rewrite was meant to remove.
 
-If the sequence looks like a generic essay template rather than the natural shape of the subject, rebuild it.
+### 7. Fidelity check
 
-Then scan the wording itself. Check specifically:
-
-- Did the rewrite reuse the source opening without a substantive reason?
-- Did it preserve the source sentence order too closely?
-- Did every requested subpoint receive nearly equal space?
-- Are transitions announcing relationships the reader can already infer?
-- Are several sentences built from the same contrast, colon, or enumeration pattern?
-- Which sentences rely on abstract nouns such as `pressure`, `dynamic`, `process`, `approach`, or `outcome` where the source provides a more concrete object?
-- Which sentences rely on generic relationship verbs such as `create`, `drive`, `enable`, `lead to`, or `result in` where the subject provides a more exact action?
-- Which phrase could be pasted into an unrelated analytical essay with almost no change?
-- Does the last sentence merely restate a thesis already established?
-
-Revise the clearest offenders. Do not introduce randomness for its own sake. Structural and lexical differences must remain clear, ordinary, and logically justified.
-
-### 7. Run a fidelity check
-
-Before returning the result, compare it against the silent content lock.
-
-The final version must preserve:
+Compare the final draft against the semantic lock. It must preserve:
 
 - all required claims;
 - all immutable details;
@@ -139,26 +104,19 @@ The final version must preserve:
 - source attribution and citations;
 - the original level of certainty.
 
-Reject any revision that adds unsupported claims, loses a required fact, changes a number, reverses causality, or weakens an important qualification.
+Reject any revision that adds unsupported claims, loses a required fact, changes a number or name, reverses causality, or turns uncertainty into certainty.
 
-Use `references/SELF_CHECK.md` when the text is information-dense or high stakes.
-
-## User voice
-
-If the user provides examples of their own writing or explicit style preferences, treat those as the strongest style signal. Match observable features such as directness, density, sentence shape, vocabulary level, humor, formality, and use of fragments without copying distinctive phrases unnecessarily.
-
-Never invent biographical experience or opinions and attribute them to the user.
+Use `references/SELF_CHECK.md` for information-dense or high-stakes text.
 
 ## Output modes
 
-If the user asks for:
-
-- **rewrite / polish / make natural** — return one finished version;
-- **light edit** — preserve structure and voice more closely;
-- **deep rewrite** — reconstruct from the content lock, allowing substantial reorganization and lexical reconstruction while preserving meaning;
-- **alternatives** — provide genuinely different structures, not synonym variants;
-- **audit** — return the final prose plus a short fidelity report listing preserved immutable details, major structural changes, and any unresolved ambiguity.
+- **rewrite / polish / make natural** — one finished version;
+- **light edit** — preserve structure and voice closely;
+- **deep rewrite** — semantic compression + reconstruction + candidate reranking;
+- **voice match** — use supplied writing samples as the primary style prior;
+- **alternatives** — produce genuinely different document shapes;
+- **audit** — prose plus a concise fidelity report.
 
 ## Boundary
 
-This skill is for writing quality, stylistic variation, and semantic preservation. Do not claim that any text is guaranteed to receive a particular score or label from an authorship or AI-detection system, and do not optimize against a named detector. If disclosure of AI assistance is required by a school, employer, publisher, platform, or other institution, do not use this workflow to conceal that requirement.
+This skill is for writing quality, specificity, voice, structural variation, and semantic preservation. Do not claim or promise a particular result from an authorship or AI-detection system, and do not optimize against a named detector. If disclosure of AI assistance is required by a school, employer, publisher, platform, or other institution, do not use this workflow to conceal that requirement.
