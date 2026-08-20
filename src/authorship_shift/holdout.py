@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable
+import os
 import time
 
 from .ablation import run_ablation_suite
@@ -10,6 +11,22 @@ from .confidence import write_confidence_report
 from .models import read_json, write_json
 from .provenance import canonical_json_sha256, sha256_file
 from .providers.base import Provider
+
+
+def _portable_reference(base_dir: Path, target: Path) -> str:
+    base = base_dir.resolve()
+    resolved = target.resolve()
+    try:
+        return Path(os.path.relpath(resolved, base)).as_posix()
+    except ValueError:
+        # Windows can raise when two paths live on different drives. Preserve an
+        # absolute reference in that uncommon case rather than creating a broken lock.
+        return str(resolved)
+
+
+def _resolve_reference(base_dir: Path, value: str | Path) -> Path:
+    raw = Path(value)
+    return raw.resolve() if raw.is_absolute() else (base_dir / raw).resolve()
 
 
 def _resolve_entry(corpus_root: Path, entry: str) -> Path:
@@ -59,7 +76,7 @@ def prepare_holdout_lock(
 ) -> Path:
     corpus_root = Path(corpus_dir).resolve()
     development_root = Path(development_suite).resolve()
-    output_root = Path(output_dir)
+    output_root = Path(output_dir).resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     lock_path = output_root / "holdout_lock.json"
     if lock_path.exists():
@@ -98,18 +115,19 @@ def prepare_holdout_lock(
     for entry in holdout_entries:
         path = _resolve_entry(corpus_root, str(entry))
         samples.append({
-            "path": str(path),
+            "path": _portable_reference(corpus_root, path),
             "sha256": sha256_file(path),
         })
 
     payload: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
+        "path_mode": "portable_relative",
         "created_at": time.time(),
-        "corpus_root": str(corpus_root),
-        "development_suite": str(development_root),
-        "split_file": str(split_path),
+        "corpus_root": _portable_reference(output_root, corpus_root),
+        "development_suite": _portable_reference(output_root, development_root),
+        "split_file": _portable_reference(output_root, split_path),
         "split_sha256": sha256_file(split_path),
-        "decision_file": str(decision_path) if decision_path.exists() else None,
+        "decision_file": _portable_reference(output_root, decision_path) if decision_path.exists() else None,
         "decision_sha256": decision_hash,
         "selected_variants": selected,
         "sample_count": len(samples),
@@ -125,11 +143,17 @@ def prepare_holdout_lock(
 
 
 def verify_holdout_lock(lock_path: str | Path) -> dict[str, Any]:
-    path = Path(lock_path)
+    path = Path(lock_path).resolve()
     lock = read_json(path)
+    base = path.parent
     errors: list[str] = []
-    split_path = Path(str(lock.get("split_file", "")))
-    if not split_path.exists():
+
+    corpus_root_value = str(lock.get("corpus_root", ""))
+    corpus_root = _resolve_reference(base, corpus_root_value) if corpus_root_value else base
+
+    split_value = str(lock.get("split_file", ""))
+    split_path = _resolve_reference(base, split_value) if split_value else Path()
+    if not split_value or not split_path.exists():
         errors.append("source split file is missing")
     elif sha256_file(split_path) != lock.get("split_sha256"):
         errors.append("source split file changed after holdout lock")
@@ -137,15 +161,17 @@ def verify_holdout_lock(lock_path: str | Path) -> dict[str, Any]:
     decision_file = lock.get("decision_file")
     decision_hash = lock.get("decision_sha256")
     if decision_file and decision_hash:
-        decision_path = Path(str(decision_file))
+        decision_path = _resolve_reference(base, str(decision_file))
         if not decision_path.exists():
             errors.append("source decision file is missing")
         elif sha256_file(decision_path) != decision_hash:
             errors.append("development decision changed after holdout lock")
 
     for sample in lock.get("samples", []):
-        sample_path = Path(str(sample.get("path", "")))
-        if not sample_path.exists():
+        sample_ref = str(sample.get("path", ""))
+        raw = Path(sample_ref)
+        sample_path = raw.resolve() if raw.is_absolute() else (corpus_root / raw).resolve()
+        if not sample_ref or not sample_path.exists():
             errors.append(f"holdout sample missing: {sample_path}")
         elif sha256_file(sample_path) != sample.get("sha256"):
             errors.append(f"holdout sample changed after lock: {sample_path}")
@@ -155,7 +181,7 @@ def verify_holdout_lock(lock_path: str | Path) -> dict[str, Any]:
     recorded_partition_hash = lock.get("partition_sha256")
     if recorded_partition_hash and expected_partition_hash != recorded_partition_hash:
         errors.append("locked partition metadata hash mismatch")
-    partition_path = path.parent / "holdout_partition.json"
+    partition_path = base / "holdout_partition.json"
     if not partition_path.exists():
         errors.append("holdout_partition.json is missing")
     else:
@@ -187,12 +213,13 @@ def run_holdout_validation(
     max_runs: int | None = None,
     resume: bool = True,
 ) -> dict[str, Any]:
-    lock_path = Path(lock_path)
+    lock_path = Path(lock_path).resolve()
     verification = verify_holdout_lock(lock_path)
     if not verification["ok"]:
         raise RuntimeError("Holdout lock verification failed: " + "; ".join(verification["errors"]))
     lock = read_json(lock_path)
     root = lock_path.parent
+    corpus_root = _resolve_reference(root, str(lock["corpus_root"]))
 
     # Reconstruct the execution partition from the lock immediately before use.
     # This prevents an editable helper file from becoming a hidden source of validation drift.
@@ -211,7 +238,7 @@ def run_holdout_validation(
     }
     suite_root = root / "suite"
     result = run_ablation_suite(
-        lock["corpus_root"],
+        corpus_root,
         suite_root,
         providers,
         judge_provider=judge_provider,
