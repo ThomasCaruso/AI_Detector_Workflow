@@ -22,25 +22,32 @@ Competition can accelerate technological innovation because it changes the cost 
 
 Competition can accelerate technological innovation because it changes the cost of standing still. A company operating without serious rivals can afford to improve slowly, protect comfortable margins, and postpone difficult bets; a company facing capable competitors cannot. When several firms pursue the same customers, each has an incentive to make its product faster, more reliable, easier to use, or meaningfully different before someone else does. That pressure also reaches costs. If one competitor discovers a cheaper manufacturing process, a more efficient model architecture, or a better distribution system, others must respond or accept weaker margins and higher prices. Competition can therefore turn efficiency from an internal preference into a survival requirement. It also rewards risk taking. A firm that refuses to fund uncertain research may preserve cash in the short term, but it risks being displaced by a rival willing to pursue a new battery chemistry, semiconductor design, software approach, or production method. The same dynamic can shorten problem-solving cycles: technical failures, customer complaints, and bottlenecks become urgent when another company is actively trying to win the same market. None of this means competition automatically produces the best innovation. Excessive pressure can encourage rushed products, duplicated research, secrecy, short-term decision making, or investment in features that are easy to market rather than genuinely useful. Some technologies also require long development horizons that are poorly served by constant commercial pressure. Even so, where firms can compete on real performance and customers can switch between them, rivalry tends to raise the penalty for complacency. Innovation becomes less dependent on whether a company happens to feel ambitious and more tied to a concrete consequence: improve the product, lower the cost, solve the problem, or risk losing ground to someone who will. That pressure can make progress arrive years earlier than it otherwise would.
 
+## AuthorshipShift v1.1 reconstruction candidate
+
+When two companies can lose the same customer, a technical problem stops being merely an internal inconvenience. A slow product, an expensive manufacturing step, or a weak feature becomes something a rival can exploit in ways customers can immediately compare themselves. That is one reason competition often compresses the time between an idea and a usable technology. Firms do not improve only because engineers want to make better things; they improve because someone else may ship first, charge less, or solve the customer’s problem more convincingly. Cost pressure works the same way. A cheaper battery process or more efficient cloud architecture can give one company room to cut prices, raise margins, or invest more heavily, forcing competitors to search for their own efficiencies. Risk also looks different in a contested market. An uncertain research project may be easier to reject when the existing business feels secure, while the possibility of being overtaken can make the same bet worth funding. Space launch is a useful example: reusable rockets mattered scientifically, but competition around launch price, reliability, and turnaround created a commercial reason to keep attacking the engineering problems. The pressure can become destructive. Teams may rush releases, hide research, duplicate work, or favor improvements that are easy to sell over projects whose value will take years to appear. Basic research and infrastructure are especially vulnerable when returns are distant or hard for one company to capture. Competition therefore works best as a source of urgency, not as a substitute for every other innovation system. Public research, open standards, and cooperation can support work that markets neglect. What rivalry changes most is the consequence of delay: an organization that postpones an improvement is not simply choosing a slower schedule; it is giving another organization time to turn that delay into an advantage.
+
+The v1.1 candidate is exactly 300 words under whitespace token counting. External detector observations are pending.
+
 ## Observed external metadata
 
 | Output | QuillBot AI detector | Pangram |
 | --- | ---: | ---: |
 | Control | 73% AI | 100% AI |
 | AuthorshipShift v1.0 | 0% AI | 100% AI |
+| AuthorshipShift v1.1 | pending | pending |
 
 These scores are volatile external measurements and are recorded only because they were part of the experiment. A detector score is not a ground-truth quality metric.
 
 ## Qualitative findings
 
-### What improved
+### What improved in v1.0
 
 - The treatment output is more compressed and less padded.
 - It uses stronger causal framing and fewer generic examples.
 - It preserves the requested counterpoint rather than becoming one-sided.
 - One external detector changed substantially, indicating that the rewrite was not merely cosmetic.
 
-### What did not change enough
+### What did not change enough in v1.0
 
 1. **The opening was copied exactly.** Both versions begin with `Competition can accelerate technological innovation because it changes the cost of standing still.` A deep rewrite should reconsider the opening unless the wording is immutable.
 2. **The rhetorical sequence remained unusually tidy.** The treatment still moves premise → product pressure → cost pressure → risk → speed → counterpoint → qualified conclusion.
@@ -49,16 +56,17 @@ These scores are volatile external measurements and are recorded only because th
 5. **Each sentence has one obvious rhetorical job.** Real analytical prose often allows evidence, qualification, and judgment to coexist inside a sentence or cluster rather than assigning each step its own clean slot.
 6. **The ending resolves the argument too completely.** It restates the governing thesis in a polished form rather than ending on the most consequential implication.
 
-## Required change for the next iteration
+## v1.1 changes under test
 
-For deep rewrites, AuthorshipShift should reconstruct from the semantic/content lock rather than revise while looking at the source sentence order. The next version should explicitly:
+For deep rewrites, AuthorshipShift now reconstructs from the semantic/content lock rather than revising while following the source sentence order. Version 1.1 explicitly:
 
-- reset the opening unless it is genuinely the strongest or immutable formulation;
-- vary the order in which supporting mechanisms appear;
-- allow asymmetric emphasis rather than allocating similar space to every requested subpoint;
-- combine rhetorical functions when natural;
-- reduce transition scaffolding where adjacency already carries the logic;
-- avoid automatically resolving the final sentence into a complete restatement of the thesis;
-- run a final architecture audit in addition to sentence-level revision.
+- resets the opening unless it is genuinely the strongest or immutable formulation;
+- chooses the support order from scratch;
+- allows asymmetric emphasis rather than allocating similar space to every requested subpoint;
+- combines rhetorical functions when natural;
+- reduces transition scaffolding where adjacency already carries the logic;
+- checks for repeated balanced constructions and enumeration patterns;
+- avoids automatically resolving the final sentence into a complete restatement of the thesis;
+- runs a final architecture audit in addition to the fidelity check.
 
 The goal is a better, less templated piece of writing while preserving meaning and epistemic fidelity.
