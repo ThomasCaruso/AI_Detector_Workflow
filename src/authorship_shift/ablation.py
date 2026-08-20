@@ -73,7 +73,7 @@ def _resolve_split_entry(corpus_root: Path, entry: str) -> Path:
 
 
 def development_files(corpus_dir: str | Path, *, split_file: str | Path | None = None, max_samples: int | None = None) -> list[Path]:
-    root = Path(corpus_dir)
+    root = Path(corpus_dir).resolve()
     if not root.exists():
         raise FileNotFoundError(f"Corpus directory does not exist: {root}")
     split_path = Path(split_file) if split_file else root / "split.json"
@@ -92,23 +92,37 @@ def development_files(corpus_dir: str | Path, *, split_file: str | Path | None =
     return files
 
 
-def _sample_id(path: Path) -> str:
+def _portable_source_ref(corpus_root: Path, path: Path) -> str:
+    root = corpus_root.resolve()
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(root).as_posix()
+    except ValueError:
+        # Legacy split files may point outside the declared corpus root. Preserve support
+        # for those inputs, but keep normal corpus entries machine-independent.
+        return str(resolved)
+
+
+def _sample_id(path: Path, *, corpus_root: Path) -> str:
     stem = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in path.stem).strip("-") or "sample"
-    digest = sha256(str(path.resolve()).encode("utf-8")).hexdigest()[:8]
+    source_ref = _portable_source_ref(corpus_root, path)
+    digest = sha256(source_ref.encode("utf-8")).hexdigest()[:8]
     return f"{stem}-{digest}"
 
 
 def build_ablation_plan(corpus_dir: str | Path, *, variants: str | Iterable[str] | None = None, split_file: str | Path | None = None, max_samples: int | None = None) -> dict[str, Any]:
-    files = development_files(corpus_dir, split_file=split_file, max_samples=max_samples)
+    corpus_root = Path(corpus_dir).resolve()
+    files = development_files(corpus_root, split_file=split_file, max_samples=max_samples)
     resolved_variants = resolve_variants(variants)
     tasks = []
     for source_path in files:
-        sample_id = _sample_id(source_path)
+        source_ref = _portable_source_ref(corpus_root, source_path)
+        sample_id = _sample_id(source_path, corpus_root=corpus_root)
         for variant in resolved_variants:
-            tasks.append({"sample_id": sample_id, "source_path": str(source_path), "variant": variant.to_dict()})
+            tasks.append({"sample_id": sample_id, "source_path": source_ref, "variant": variant.to_dict()})
     return {
         "created_at": time.time(),
-        "corpus_dir": str(Path(corpus_dir).resolve()),
+        "corpus_dir": str(corpus_root),
         "split_file": str(Path(split_file).resolve()) if split_file else None,
         "sample_count": len(files),
         "variant_count": len(resolved_variants),
@@ -221,7 +235,8 @@ def run_ablation_suite(corpus_dir: str | Path, output_dir: str | Path, providers
         raise ValueError("At least one provider is required")
     judge = judge_provider or provider_list[0]
     config = deepcopy(base_config or {})
-    plan = build_ablation_plan(corpus_dir, variants=variants, split_file=split_file, max_samples=max_samples)
+    corpus_root = Path(corpus_dir).resolve()
+    plan = build_ablation_plan(corpus_root, variants=variants, split_file=split_file, max_samples=max_samples)
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     write_ablation_plan(root, plan)
@@ -246,7 +261,7 @@ def run_ablation_suite(corpus_dir: str | Path, output_dir: str | Path, providers
             summary.update({"sample_id": sample_id, "source_path": task["source_path"], "variant": variant.name, "variant_description": variant.description, "variant_settings": variant.to_dict()})
             results.append(summary)
             continue
-        source_path = Path(task["source_path"])
+        source_path = _resolve_split_entry(corpus_root, task["source_path"])
         source = source_path.read_text(encoding="utf-8")
         run_config = deepcopy(config)
         run_config.setdefault("external_evaluation", {})
@@ -264,7 +279,7 @@ def run_ablation_suite(corpus_dir: str | Path, output_dir: str | Path, providers
         gates = run_config.get("gates", {})
         run_pipeline(exp, selected_providers, judge_provider=judge, diversity_weight=float(gates.get("diversity_weight", 0.25)), gates=gates, **settings)
         summary = summarize_run(run_root)
-        summary.update({"sample_id": sample_id, "source_path": str(source_path), "variant": variant.name, "variant_description": variant.description, "variant_settings": variant.to_dict()})
+        summary.update({"sample_id": sample_id, "source_path": task["source_path"], "variant": variant.name, "variant_description": variant.description, "variant_settings": variant.to_dict()})
         write_json(run_root / "ablation_summary.json", summary)
         results.append(summary)
         completed_this_call += 1
