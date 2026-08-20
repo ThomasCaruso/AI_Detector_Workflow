@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "description": "Self-contained fictional evaluation cases for AuthorshipShift Engine v2. These cases test fidelity, candidate diversity, structure, and voice without requiring external research.",
+  "cases": [
+    {
+      "id": "business_valuation_001",
+      "genre": "business_analysis",
+      "target_words": 320,
+      "task": "Write an analytical investment paragraph assessing the quality of the reported growth and valuation. Preserve every number and qualification. Do not turn assumptions into forecasts.",
+      "source": "Northstar Mobility generated $18.4 million of revenue and $2.3 million of EBITDA in 2025. Revenue grew 27% year over year, but approximately 9 percentage points of that growth came from a one-time utility rebate program that ends in December 2025. The company has $6.2 million of debt and $0.9 million of cash. A potential buyer is considering an enterprise value of $21.0 million, equal to approximately 9.1x reported EBITDA. Normalized EBITDA is estimated at $1.9 million after removing $0.4 million of margin contribution associated with the rebate program, implying approximately 11.1x normalized EBITDA. Management's base case assumes 2030 revenue of $30 million, EBITDA of $5.1 million, and net debt of $2.0 million. At an 8.5x exit multiple, enterprise value would be $43.35 million and equity value $41.35 million. The 2030 figures are scenario assumptions rather than a forecast.",
+      "required_qualifications": [
+        "approximately 9 percentage points of growth came from a one-time rebate",
+        "normalized EBITDA is an estimate",
+        "2030 figures are scenario assumptions rather than a forecast"
+      ]
+    },
+    {
+      "id": "technical_postmortem_001",
+      "genre": "technical_explanation",
+      "target_words": 260,
+      "task": "Explain the incident clearly for a technical but non-specialist reader. Preserve the distinction between trigger and severity amplifier. Do not claim permanent customer loss.",
+      "source": "A payment outage lasted 43 minutes in June 2025. A configuration change reduced an API timeout from 2.0 seconds to 700 milliseconds. Retried requests then amplified latency, and 6.7% of charging sessions failed during the incident. The timeout change triggered the outage, while the retry policy increased its severity. There is no evidence that the outage caused permanent customer losses.",
+      "required_qualifications": [
+        "timeout change was the trigger",
+        "retry policy amplified severity rather than independently causing the incident",
+        "absence of evidence of permanent customer loss is not proof that none occurred"
+      ]
+    },
+    {
+      "id": "science_summary_001",
+      "genre": "science_summary",
+      "target_words": 280,
+      "task": "Summarize the fictional study in plain analytical prose. Preserve uncertainty and do not convert association into causation.",
+      "source": "In a fictional observational study of 1,240 adults, participants who reported at least 150 minutes of moderate exercise per week had an average reaction-time score 8% better than participants reporting less than 30 minutes per week. The groups were not randomly assigned. The study adjusted for age, sleep duration, and self-reported caffeine intake, but it did not measure diet quality or occupational activity. The authors concluded that exercise was associated with faster reaction time in the sample; they did not conclude that exercise caused the difference.",
+      "required_qualifications": [
+        "observational rather than randomized",
+        "8% difference is an association in this sample",
+        "diet quality and occupational activity were not measured",
+        "causation was not established"
+      ]
+    },
+    {
+      "id": "professional_email_001",
+      "genre": "professional_writing",
+      "target_words": 150,
+      "task": "Draft a concise client email explaining the schedule change, what is known, and the next action. Do not invent an apology, discount, or cause beyond the supplied facts.",
+      "source": "The Atlas implementation was scheduled for September 14. The data migration vendor now expects its export on September 16. Internal validation requires one full business day after the export arrives. The earliest supported implementation date is therefore September 17. The vendor has not identified a further delay. The project team will confirm the implementation date after validating the export.",
+      "required_qualifications": [
+        "September 17 is the earliest supported date, not a guaranteed date",
+        "vendor has not identified a further delay",
+        "team confirms after validation"
+      ]
+    },
+    {
+      "id": "competition_innovation_001",
+      "genre": "analytical_argument",
+      "target_words": 300,
+      "task": "Explain why competition can accelerate technological innovation. Cover product improvement, cost reduction, risk taking, faster problem solving, and at least one limitation. Keep the argument analytical and not one-sided.",
+      "source": "Competition can make delay more costly because customers, capital, and market share can move toward a rival. Firms may respond by improving products, lowering production costs, funding uncertain technologies, and attacking technical bottlenecks sooner. Competitive pressure can also create harmful short-term incentives, including rushed releases, duplicated research, secrecy, or underinvestment in basic research. Some long-horizon technologies benefit from cooperation, public research, shared standards, or patient funding.",
+      "required_qualifications": [
+        "competition can accelerate innovation rather than always doing so",
+        "short-term competitive pressure can damage quality or long-horizon research",
+        "cooperation and public or patient funding can complement competition"
+      ]
+    }
+  ]
+}
