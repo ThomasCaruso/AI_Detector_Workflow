@@ -15,6 +15,7 @@ METRICS: dict[str, bool] = {
     "mean_quality_delta": True,
     "mean_structural_distance": True,
     "beam_mean_pair_distance": True,
+    "total_model_calls": False,
     "candidate_count": False,
 }
 
@@ -170,7 +171,8 @@ def analyze_confidence(
         "comparisons": comparisons,
         "note": (
             "Bootstrap intervals and sign tests summarize local paired ablation results only. "
-            "They do not estimate or predict any proprietary detector score."
+            "Measured model-call count is treated as a lower-is-better compute metric; wall-clock time is omitted from inference because it is hardware/load dependent. "
+            "These statistics do not estimate or predict any proprietary detector score."
         ),
     }
 
