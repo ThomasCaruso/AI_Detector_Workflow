@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from authorship_shift.batch_gate import assess_batch
 from authorship_shift.candidate_lab import analyze_candidates
 
 
@@ -52,10 +53,15 @@ def main() -> int:
         raise RuntimeError("manual batch contains no completed candidate outputs")
 
     analyses = analyze_candidates(source, candidates)
+    gate = assess_batch(
+        analyses,
+        target_words=manifest.get("target_words"),
+    )
     payload = {
         "case_id": manifest.get("case_id"),
         "candidate_count": len(candidates),
         "missing_outputs": missing,
+        "gate": gate.to_dict(),
         "analyses": [row.to_dict() for row in analyses],
     }
     output_path = args.batch / "analysis.json"
@@ -75,6 +81,11 @@ def main() -> int:
         )
     if missing:
         print(f"missing_outputs={len(missing)}")
+    print(f"batch_gate={'PASS' if gate.pass_gate else 'FAIL'}")
+    for failure in gate.hard_failures:
+        print(f"FAIL: {failure}")
+    for warning in gate.warnings:
+        print(f"WARN: {warning}")
     print(output_path)
     return 0
 
