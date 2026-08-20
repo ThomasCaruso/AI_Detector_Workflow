@@ -23,16 +23,28 @@ def _portable_reference(base_dir: Path, target: Path) -> str:
         return str(resolved)
 
 
-def deterministic_split(files: list[Path], *, holdout_fraction: float = 0.2, seed: str = "authorship-shift") -> dict[str, list[str]]:
+def deterministic_split(
+    files: list[Path],
+    *,
+    holdout_fraction: float = 0.2,
+    seed: str = "authorship-shift",
+    base_dir: str | Path | None = None,
+) -> dict[str, list[str]]:
     if not 0 < holdout_fraction < 1:
         raise ValueError("holdout_fraction must be between 0 and 1")
+    root = Path(base_dir).resolve() if base_dir is not None else None
     train: list[str] = []
     holdout: list[str] = []
     cutoff = int(holdout_fraction * 10_000)
-    for path in sorted(files, key=lambda p: str(p)):
-        digest = sha256(f"{seed}:{path.name}".encode("utf-8")).hexdigest()
+    keyed: list[tuple[str, Path]] = []
+    for raw in files:
+        path = Path(raw)
+        ref = _portable_reference(root, path) if root is not None else path.as_posix()
+        keyed.append((ref, path))
+    for ref, _ in sorted(keyed, key=lambda item: item[0]):
+        digest = sha256(f"{seed}:{ref}".encode("utf-8")).hexdigest()
         bucket = int(digest[:8], 16) % 10_000
-        (holdout if bucket < cutoff else train).append(str(path))
+        (holdout if bucket < cutoff else train).append(ref)
     return {"development": train, "holdout": holdout}
 
 
@@ -233,6 +245,6 @@ def split_directory(
         result["metadata"]["manifest_sha256"] = sha256_file(manifest_file)
     else:
         files = [p for p in root.rglob("*.txt") if p.is_file()]
-        result = deterministic_split(files, holdout_fraction=holdout_fraction, seed=seed)
+        result = deterministic_split(files, holdout_fraction=holdout_fraction, seed=seed, base_dir=root)
     out.write_text(json.dumps(result, indent=2), encoding="utf-8")
     return out
