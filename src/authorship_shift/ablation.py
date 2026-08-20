@@ -151,6 +151,7 @@ def summarize_run(experiment_root: str | Path) -> dict[str, Any]:
     config = read_json(root / "config.json")
     ranking = read_json(root / "ranking.json") if (root / "ranking.json").exists() else []
     selection = read_json(root / "selection.json") if (root / "selection.json").exists() else {}
+    pipeline_stats = read_json(root / "pipeline_stats.json") if (root / "pipeline_stats.json").exists() else {}
     candidates = []
     for cid in manifest.get("candidate_ids", []):
         path = root / "candidates" / f"{cid}.json"
@@ -178,7 +179,7 @@ def summarize_run(experiment_root: str | Path) -> dict[str, Any]:
     all_diversity = summarize_diversity(texts).to_dict()
     return {
         "title": manifest.get("title", root.name),
-        "experiment_root": str(root),
+        "experiment_root": str(root.resolve()),
         "candidate_count": len(candidates),
         "stage_counts": stage_counts,
         "models": sorted(models),
@@ -191,6 +192,9 @@ def summarize_run(experiment_root: str | Path) -> dict[str, Any]:
         "beam_size": len(beam_ids),
         "beam_mean_pair_distance": float(beam_diversity.get("mean_pair_distance", 0.0) or 0.0),
         "all_mean_pair_distance": float(all_diversity.get("mean_pair_distance", 0.0) or 0.0),
+        "total_model_calls": int(pipeline_stats.get("total_model_calls", 0) or 0),
+        "elapsed_seconds": float(pipeline_stats.get("elapsed_seconds", 0.0) or 0.0),
+        "call_counts": dict(pipeline_stats.get("call_counts", {}) or {}),
         "external_queries_used": int(manifest.get("external_queries_used", 0)),
     }
 
@@ -236,7 +240,9 @@ def run_ablation_suite(corpus_dir: str | Path, output_dir: str | Path, providers
         key = (sample_id, variant.name)
         run_root = root / "runs" / sample_id / variant.name
         if resume and (run_root / "ranking.json").exists():
-            summary = existing.get(key) or summarize_run(run_root)
+            # Re-summarize completed runs so newly added instrumentation is reflected in
+            # suite_results.json rather than preserving stale summaries indefinitely.
+            summary = summarize_run(run_root)
             summary.update({"sample_id": sample_id, "source_path": task["source_path"], "variant": variant.name, "variant_description": variant.description, "variant_settings": variant.to_dict()})
             results.append(summary)
             continue
@@ -288,6 +294,8 @@ def aggregate_by_variant(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "mean_structural_distance": _safe_mean([float(r.get("mean_structural_distance", 0.0)) for r in rows]),
             "mean_beam_pair_distance": _safe_mean([float(r.get("beam_mean_pair_distance", 0.0)) for r in rows]),
             "mean_candidate_count": _safe_mean([float(r.get("candidate_count", 0.0)) for r in rows]),
+            "mean_model_calls": _safe_mean([float(r.get("total_model_calls", 0.0)) for r in rows]),
+            "mean_elapsed_seconds": _safe_mean([float(r.get("elapsed_seconds", 0.0)) for r in rows]),
             "external_queries_used": sum(int(r.get("external_queries_used", 0)) for r in rows),
         })
     return aggregates
@@ -306,12 +314,19 @@ def build_ablation_markdown(output_dir: str | Path) -> str:
         f"- Completed runs: **{len(results)}**",
         f"- External detector queries consumed by suite: **{sum(int(r.get('external_queries_used', 0)) for r in results)}**",
         "", "## Aggregate comparison", "",
-        "| Variant | Runs | Gate pass | Fidelity | Quality Δ | Structural shift | Beam diversity | Candidates/run |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| Variant | Runs | Gate pass | Fidelity | Quality Δ | Structural shift | Beam diversity | Candidates/run | Model calls/run | Runtime/run s |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in aggregates:
-        lines.append("| {variant} | {runs} | {gate:.3f} | {fid:.3f} | {quality:.3f} | {struct:.3f} | {div:.3f} | {cand:.1f} |".format(variant=row["variant"], runs=row["runs"], gate=row["mean_hard_gate_pass_rate"], fid=row["mean_fidelity"], quality=row["mean_quality_delta"], struct=row["mean_structural_distance"], div=row["mean_beam_pair_distance"], cand=row["mean_candidate_count"]))
-    lines.extend(["", "## Interpretation rules", "", "- These comparisons isolate pipeline components; they do not estimate any proprietary detector's score.", "- Fidelity and quality remain hard constraints. More structural movement is not automatically better.", "- Development runs are configured with an external-query budget of zero.", "- Held-out corpus samples should remain untouched until a pipeline configuration is frozen.", "", "## Variants", ""])
+        lines.append(
+            "| {variant} | {runs} | {gate:.3f} | {fid:.3f} | {quality:.3f} | {struct:.3f} | {div:.3f} | {cand:.1f} | {calls:.1f} | {elapsed:.1f} |".format(
+                variant=row["variant"], runs=row["runs"], gate=row["mean_hard_gate_pass_rate"],
+                fid=row["mean_fidelity"], quality=row["mean_quality_delta"], struct=row["mean_structural_distance"],
+                div=row["mean_beam_pair_distance"], cand=row["mean_candidate_count"], calls=row["mean_model_calls"],
+                elapsed=row["mean_elapsed_seconds"],
+            )
+        )
+    lines.extend(["", "## Interpretation rules", "", "- These comparisons isolate pipeline components; they do not estimate any proprietary detector's score.", "- Fidelity and quality remain hard constraints. More structural movement is not automatically better.", "- Model-call counts are measured from each completed local pipeline run; wall-clock time is hardware/load dependent.", "- Development runs are configured with an external-query budget of zero.", "- Held-out corpus samples should remain untouched until a pipeline configuration is frozen.", "", "## Variants", ""])
     for variant in plan.get("variants", []):
         lines.append(f"- **{variant.get('name')}** — {variant.get('description')}")
     lines.append("")
