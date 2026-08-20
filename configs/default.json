@@ -12,19 +12,16 @@
     "beam_width": 4,
     "beam_rounds": 1,
     "operators_per_candidate": 2,
-    "operators": [
-      "claim_first",
-      "mechanism_first",
-      "contrast_driven",
-      "compressed_reasoning",
-      "asymmetric_structure",
-      "evidence_then_judgment"
-    ]
+    "operators": ["claim_first", "mechanism_first", "contrast_driven", "compressed_reasoning", "asymmetric_structure", "evidence_then_judgment"]
   },
   "gates": {
     "minimum_fidelity": 0.96,
     "minimum_quality_delta": 0.0,
     "diversity_weight": 0.25
+  },
+  "ablation": {
+    "max_development_samples": 5,
+    "default_variants": ["baseline", "planning_only", "generator_diversity", "planning_revision", "planning_operators", "full_no_diversity", "full"]
   },
   "external_evaluation": {
     "development_queries_allowed": 0,

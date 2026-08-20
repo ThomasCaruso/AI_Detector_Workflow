@@ -12,5 +12,9 @@ dist/
 experiments/*
 !experiments/.gitkeep
 
+# Ablation suites can contain many generated texts and should stay local.
+ablations/*
+!ablations/.gitkeep
+
 # Local reports/splits are experiment artifacts.
 corpus/split.json

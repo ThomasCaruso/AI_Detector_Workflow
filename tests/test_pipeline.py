@@ -11,14 +11,7 @@ class FakeProvider(Provider):
 
     def chat(self, prompt, *, system=None, json_mode=False):
         if "Skill 01" in prompt:
-            return json.dumps({
-                "purpose": "explain",
-                "audience": "general",
-                "claims": [{"id": "C1", "proposition": "Distribution matters for products", "importance": "required"}],
-                "immutable_items": [],
-                "non_negotiable_terms": [],
-                "forbidden_inferences": [],
-            })
+            return json.dumps({"purpose": "explain", "audience": "general", "claims": [{"id": "C1", "proposition": "Distribution matters for products", "importance": "required"}], "immutable_items": [], "non_negotiable_terms": [], "forbidden_inferences": []})
         if "Skill 02" in prompt:
             return json.dumps({"plans": [{"name": "p", "logic": "direct", "opening": "claim", "sections": [{"function": "explain", "claim_ids": ["C1"], "notes": ""}], "closing": "end", "distinctive_structural_choices": []}]})
         if "Skill 03" in prompt:
@@ -39,16 +32,17 @@ class FakeProvider(Provider):
 def test_pipeline_runs_with_beam(tmp_path):
     exp = Experiment(tmp_path / "e")
     exp.initialize("x", "Distribution matters for products.", {"external_evaluation": {"milestone_queries_budget": 5}})
-    result = run_pipeline(
-        exp,
-        FakeProvider(),
-        plans_n=1,
-        drafts_per_plan=1,
-        beam_width=2,
-        beam_rounds=1,
-        operators=["claim_first"],
-        operators_per_candidate=1,
-    )
+    result = run_pipeline(exp, FakeProvider(), plans_n=1, drafts_per_plan=1, beam_width=2, beam_rounds=1, operators=["claim_first"], operators_per_candidate=1)
     assert len(result.candidates) >= 3
     assert result.beam_ids
     assert (exp.root / "ranking.json").exists()
+
+
+def test_pipeline_supports_direct_baseline_ablation(tmp_path):
+    exp = Experiment(tmp_path / "baseline")
+    exp.initialize("baseline", "Distribution matters for products.", {"external_evaluation": {"milestone_queries_budget": 0}})
+    result = run_pipeline(exp, FakeProvider(), plans_n=1, drafts_per_plan=1, beam_width=1, beam_rounds=0, operators=[], operators_per_candidate=0, use_planning=False, use_global_revision=False, use_operators=False, use_diversity=False)
+    assert len(result.candidates) == 1
+    assert result.plans[0]["name"] == "direct_control"
+    selection = json.loads((exp.root / "selection.json").read_text(encoding="utf-8"))
+    assert selection["pipeline_features"] == {"planning": False, "global_revision": False, "operators": False, "diversity_selection": False, "provider_count": 1}
