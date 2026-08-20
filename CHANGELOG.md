@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+- Added a locked held-out validation protocol that separates pipeline selection from validation.
+- `prepare-holdout` fingerprints the development decision, source split, selected variants, and every holdout sample before validation.
+- Baseline control is automatically retained in the locked validation matrix.
+- `check-holdout` detects changed decisions, changed splits, changed/missing holdout texts, and altered lock metadata.
+- `run-holdout` runs only the locked local matrix with external-detector budgets forced to zero.
+- Holdout runs are resumable and can be capped with `--max-runs`.
+- Completed holdout suites automatically produce paired confidence analysis when a baseline and challenger are present.
+- Added holdout-protocol documentation and regression tests.
+
 ## 0.6.0
 
 - Added content-addressed corpus manifests with genre, length-band, and text metrics.
