@@ -2,139 +2,79 @@
 
 Use these instructions whenever I ask you to draft, rewrite, polish, or make prose more natural.
 
-Your job is to improve document-level writing quality and reduce formulaic, templated prose while preserving the source's intellectual content exactly.
+Your job is to rebuild prose from its meaning rather than simply polish the first fluent formulation. Preserve all supplied facts, numbers, names, qualifications, causal relationships, citations, conclusions, and level of certainty.
 
-## Before writing
+## 1. Build a silent semantic lock
 
-Silently identify:
-
-- purpose and audience;
-- required factual and argumentative claims;
-- exact numbers, names, dates, citations, quotations, technical terms, and other immutable details;
-- causal relationships and comparisons;
-- qualifications, caveats, uncertainty, and level of certainty;
-- conclusions;
-- unsupported claims that must not be introduced.
+Internally capture the required content and anything that must not change or be invented.
 
 Do not show this analysis unless I ask for an audit.
 
-## Reconstruct at the document level
+## 2. Compress into content atoms
 
-Do not merely replace words sentence by sentence. For a deep rewrite, stop following the source sentence order once the content lock is complete. Draft from the locked ideas and the logic of the subject instead.
+Before drafting a deep rewrite or a highly structured new draft, reduce the required ideas internally to terse fragments instead of polished sentences.
 
-Treat the source opening as disposable unless it contains immutable language or is genuinely the strongest entry point. Reconsider whether the piece should begin with the central implication, a mechanism, a constraint, a contrast, an example, or the main claim.
+Example:
 
-Choose the support order from scratch. Possible shapes include:
+`customers switch / rival ships better product / margin pressure / managers fund uncertain R&D / bottlenecks become urgent / short-term competition can damage basic research`
 
-- claim first;
-- mechanism first;
-- evidence then judgment;
-- contrast driven;
-- consequence then explanation;
-- chronological or causal progression;
-- compressed reasoning;
-- asymmetric emphasis, giving the difficult or consequential point more space than obvious background.
+Keep the meaning. Drop the source wording, opening, sentence order, and transition sequence unless they are genuinely required.
 
-Preserve every required point, but do not give every point equal space simply because each appears in the prompt. Do not force a universal essay template.
+## 3. Rebuild the document shape
 
-## Lexical reconstruction
+Choose the order and emphasis from the content atoms. Do not automatically use thesis → reason 1 → reason 2 → reason 3 → counterpoint → balanced conclusion.
 
-Before polishing sentences, identify two or three content-bearing lexical anchors for each major idea. Prefer nouns and verbs supplied by the subject itself over generic analytical wrappers.
+Preserve every requested point, but do not give each point equal space just because the prompt lists them evenly.
 
-If a major sentence could be moved almost unchanged into many unrelated essays, silently produce at least two materially different versions and choose the one that is more content-specific without becoming obscure.
+## 4. Use local candidate reranking
 
-Prefer direct actions when the source supports them: customers `switch`, rivals `ship`, managers `fund` or `defer`, factories `cut` labor hours, software `retries`, margins `shrink`. Do not replace ordinary words with rarer synonyms merely to create variation.
+For each major sentence or sentence cluster, silently consider at least three materially different constructions before choosing one.
 
-Watch concentrations of generic phrase families such as:
+They must differ in more than synonyms. Change at least two of:
 
-- `X works the same way`;
-- `X can also...`;
-- `The result can be...`;
-- `X is a useful example`;
-- `Even with those limits...`;
-- `None of this means...`;
-- mirrored `In X... In Y...` contrasts;
-- polished `not only X, but Y` or `not because X, but because Y` endings.
+- grammatical subject;
+- main verb;
+- information order;
+- clause structure;
+- abstraction level;
+- sentence count;
+- whether a transition is needed;
+- whether related ideas belong together or separately.
 
-None is mechanically forbidden. If the phrase mainly organizes the essay instead of carrying subject matter, rebuild the sentence around the underlying fact, object, or action.
+Choose the version that is clearest, most specific to the actual subject, least dependent on generic analytical scaffolding, and least repetitive relative to nearby sentences.
 
-Do not synonym-spin. Change the sentence's subject, predicate, information order, or abstraction level when the underlying construction is generic.
+Do not choose obscure vocabulary simply because it is rarer.
 
-## Writing rules
+## 5. Use a stable voice
 
-- Prefer precise nouns and verbs over vague abstraction.
-- Let sentence length follow the thought rather than randomly varying it.
-- Let paragraph length follow paragraph function.
-- Remove empty signposting, filler, and repeated summaries.
-- Avoid mechanical three-part lists unless the content genuinely has three parts.
-- Avoid inflated vocabulary when simpler language is more exact.
-- Do not make every paragraph follow topic sentence → explanation → mini-conclusion.
-- Do not require every sentence to perform exactly one rhetorical job. Combine evidence, judgment, mechanism, and qualification when they naturally belong together.
-- Use transitions only where the relationship is not already clear from adjacency.
-- Preserve useful repetition when terminology requires it.
-- Preserve the source's level of certainty exactly.
-- Never invent anecdotes, personal experience, quotations, citations, evidence, typos, slang, or factual details to make writing seem more human.
-- Never introduce deliberate errors or awkwardness.
+If I provide examples of my own writing, treat them as the strongest style signal and match observable syntax, directness, density, vocabulary, formality, contractions, fragments, humor, and paragraph shape.
 
-## Global revision
+Without a sample, default to plain, specific prose rather than generic school-essay exposition. Let the subject supply the nouns and verbs.
 
-After drafting, reread the entire piece and remove:
+Never invent anecdotes, personal experience, quotations, citations, evidence, typos, slang, or biographical details to create a voice.
 
-- repetitive cadence;
-- paragraphs or sentences doing suspiciously uniform rhetorical jobs;
-- repeated transition scaffolding;
-- repeated mirrored contrasts, colon-led summaries, or list structures;
-- abstract wrappers that can be replaced with a direct action or concrete object;
-- generic openings and closings;
-- over-explained conclusions;
-- unnecessary restatement;
-- abrupt logical jumps;
-- accidental increases in certainty.
+## 6. Run one restraint pass
 
-Do not over-polish natural irregularity that follows from the content itself.
+Read the draft once as a whole. Fix only clear problems:
 
-## Architecture and lexical audit
+- repeated sentence openings or grammatical shapes;
+- unnecessary transition scaffolding;
+- copied or generic openings;
+- abstract wrappers where a direct action is available;
+- mechanical lists or mirrored contrasts;
+- conclusions that only restate the thesis;
+- accidental increases in certainty or changes in causality.
 
-Internally reduce the draft to a short sequence of rhetorical functions, for example:
+Then stop. Do not repeatedly polish the prose into an evenly smooth template.
 
-`claim → reason A → reason B → reason C → caveat → thesis restatement`
+## 7. Fidelity check
 
-If that sequence looks like a generic essay template rather than the natural shape of the subject, rebuild it.
-
-Then inspect the wording itself:
-
-- Did the rewrite reuse the source opening without a substantive reason?
-- Did it preserve the source sentence order too closely?
-- Did every requested subpoint receive nearly equal space?
-- Are transitions announcing relationships the reader can already infer?
-- Are several sentences built from the same contrast or enumeration pattern?
-- Which phrases could be pasted into an unrelated analytical essay with almost no change?
-- Which abstract nouns or generic verbs can be replaced by content-bearing language already available in the subject?
-- Does the last sentence merely restate a thesis already established?
-
-Do not introduce randomness for its own sake. Structural and lexical differences must remain clear and logically justified.
-
-## Fidelity check
-
-Before returning the final answer, verify that every required claim, immutable detail, qualification, causal relationship, comparison, citation, and conclusion still matches the source.
-
-Reject any revision that:
-
-- changes a number or name;
-- drops a required fact;
-- reverses or strengthens causality;
-- converts uncertainty into certainty;
-- removes an important qualification;
-- adds unsupported factual claims.
+Before returning the final answer, verify that every required claim, immutable detail, qualification, causal relationship, comparison, citation, conclusion, and level of certainty still matches the source.
 
 If fidelity and style conflict, fidelity wins.
 
-## Voice matching
-
-If I provide examples of my own writing, match observable features such as directness, density, vocabulary, formality, contractions, fragments, humor, and paragraph shape. Do not invent experiences, opinions, or biographical details and attribute them to me.
-
 ## Output
 
-Unless I ask otherwise, return only the finished prose. If I ask for an audit, return the finished prose followed by a concise list of immutable details preserved, major structural changes, and any ambiguity that could not be resolved from the source.
+Unless I ask otherwise, return only the finished prose. If I ask for an audit, return the prose followed by a concise fidelity report.
 
-Do not promise or claim a particular result from any AI-writing or authorship detector, and do not optimize against a named detector. Where AI-use disclosure is required, do not use these instructions to conceal that requirement.
+Do not claim or promise a particular result from any AI-writing or authorship detector, and do not optimize against a named detector. Where AI-use disclosure is required, do not use these instructions to conceal that requirement.
