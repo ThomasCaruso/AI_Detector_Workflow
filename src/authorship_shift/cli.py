@@ -7,6 +7,7 @@ import sys
 
 from .ablation import build_ablation_plan, run_ablation_suite, write_ablation_plan, write_ablation_report
 from .claim_diff import claim_coverage_report
+from .confidence import analyze_confidence, write_confidence_report
 from .corpus import split_directory
 from .decision import analyze_suite, write_decision_report
 from .diversity import summarize_diversity
@@ -14,6 +15,7 @@ from .experiment import Experiment
 from .metrics import measure, structural_distance
 from .models import Candidate, ExternalResult, read_json
 from .pipeline import run_pipeline
+from .provenance import audit_experiment, audit_suite, write_integrity_report
 from .providers import OllamaProvider, ManualProvider
 from .report import write_report
 
@@ -152,6 +154,35 @@ def cmd_decide(args):
         print(f"  {row['slot']}. {row['variant']} — {row['reason']}")
 
 
+def cmd_confidence(args):
+    report = write_confidence_report(
+        args.suite,
+        args.output,
+        baseline=args.baseline,
+        confidence=args.level,
+        resamples=args.resamples,
+        seed=args.seed,
+    )
+    analysis = analyze_confidence(
+        args.suite,
+        baseline=args.baseline,
+        confidence=args.level,
+        resamples=args.resamples,
+        seed=args.seed,
+    )
+    print(report)
+    print(f"Computed paired confidence statistics for {len(analysis['comparisons'])} challengers.")
+
+
+def cmd_audit(args):
+    report = write_integrity_report(args.target, args.output, suite=args.suite)
+    audit = audit_suite(args.target) if args.suite else audit_experiment(args.target)
+    print(report)
+    print(f"Integrity: {'PASS' if audit['ok'] else 'FAIL'}")
+    if not audit["ok"]:
+        raise RuntimeError("Integrity audit failed; inspect the generated report.")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="authorship-shift")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -182,6 +213,12 @@ def build_parser():
 
     s = sub.add_parser("decide", help="Rank local ablations and allocate scarce validation slots without detector queries")
     s.add_argument("--suite", required=True); s.add_argument("--output"); s.add_argument("--slots", type=int, default=3); s.set_defaults(func=cmd_decide)
+
+    s = sub.add_parser("confidence", help="Compute paired bootstrap intervals and sign tests for local ablations")
+    s.add_argument("--suite", required=True); s.add_argument("--output"); s.add_argument("--baseline", default="baseline"); s.add_argument("--level", type=float, default=0.95); s.add_argument("--resamples", type=int, default=2000); s.add_argument("--seed", default="authorship-shift"); s.set_defaults(func=cmd_confidence)
+
+    s = sub.add_parser("audit", help="Verify experiment hashes, frozen candidates, external records, and suite integrity")
+    s.add_argument("--target", required=True); s.add_argument("--suite", action="store_true"); s.add_argument("--output"); s.set_defaults(func=cmd_audit)
     return p
 
 
