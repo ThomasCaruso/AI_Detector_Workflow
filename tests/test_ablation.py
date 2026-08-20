@@ -66,6 +66,18 @@ def test_sample_identity_is_stable_across_clone_locations(tmp_path):
     assert a["sample_id"] == b["sample_id"]
 
 
+def test_plan_groups_variants_by_sample_for_bounded_smoke_batches(tmp_path):
+    corpus = tmp_path / "corpus"; corpus.mkdir()
+    (corpus / "a.txt").write_text("a", encoding="utf-8")
+    (corpus / "b.txt").write_text("b", encoding="utf-8")
+    plan = build_ablation_plan(corpus, variants="baseline,planning_revision,full")
+
+    first_batch = plan["tasks"][:3]
+    assert [task["variant"]["name"] for task in first_batch] == ["baseline", "planning_revision", "full"]
+    assert len({task["sample_id"] for task in first_batch}) == 1
+    assert len({task["source_path"] for task in first_batch}) == 1
+
+
 def test_ablation_suite_runs_and_forces_zero_external_budget(tmp_path):
     corpus = tmp_path / "corpus"; corpus.mkdir()
     (corpus / "sample.txt").write_text("Distribution matters for products.", encoding="utf-8")
