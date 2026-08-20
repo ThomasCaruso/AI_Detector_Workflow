@@ -8,6 +8,7 @@ import sys
 from .ablation import build_ablation_plan, run_ablation_suite, write_ablation_plan, write_ablation_report
 from .claim_diff import claim_coverage_report
 from .corpus import split_directory
+from .decision import analyze_suite, write_decision_report
 from .diversity import summarize_diversity
 from .experiment import Experiment
 from .metrics import measure, structural_distance
@@ -142,6 +143,15 @@ def cmd_ablation_report(args):
     print(write_ablation_report(args.suite, args.output))
 
 
+def cmd_decide(args):
+    report = write_decision_report(args.suite, args.output, slots=args.slots)
+    analysis = analyze_suite(args.suite, slots=args.slots)
+    print(report)
+    print("Suggested validation slots:")
+    for row in analysis["recommended_validation_slots"]:
+        print(f"  {row['slot']}. {row['variant']} — {row['reason']}")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="authorship-shift")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -169,6 +179,9 @@ def build_parser():
     s.add_argument("--corpus", required=True); s.add_argument("--output", required=True); s.add_argument("--config", default="configs/default.json"); s.add_argument("--split"); s.add_argument("--variants"); s.add_argument("--max-samples", type=int); s.add_argument("--max-runs", type=int); s.add_argument("--model"); s.add_argument("--models"); s.add_argument("--judge-model"); s.add_argument("--no-resume", dest="resume", action="store_false"); s.set_defaults(func=cmd_ablate, resume=True)
 
     s = sub.add_parser("ablation-report"); s.add_argument("--suite", required=True); s.add_argument("--output"); s.set_defaults(func=cmd_ablation_report)
+
+    s = sub.add_parser("decide", help="Rank local ablations and allocate scarce validation slots without detector queries")
+    s.add_argument("--suite", required=True); s.add_argument("--output"); s.add_argument("--slots", type=int, default=3); s.set_defaults(func=cmd_decide)
     return p
 
 
