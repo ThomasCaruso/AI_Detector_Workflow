@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+- Hardened locked-holdout integrity checks so validation detects altered partition metadata in addition to changed source texts and decisions.
+- Guaranteed a nonempty stratified holdout whenever a corpus has at least two usable samples, including singleton-strata fallback behavior.
+- Persisted measured local model-call totals in ablation summaries instead of relying only on pre-run candidate-count estimates.
+- Added measured model calls to paired confidence analysis and compute-aware decision ranking, while retaining estimates as a fallback when measured totals are unavailable.
+- Updated validation and decision documentation for the measured-compute workflow and added regression coverage for the new accounting behavior.
+- Synchronized the runtime package version and project metadata at `0.8.0`.
+- External detector budgets remain zero for development, ablation, and holdout child runs.
+
 ## 0.7.0
 
 - Added a locked held-out validation protocol that separates pipeline selection from validation.
