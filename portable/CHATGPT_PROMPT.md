@@ -37,6 +37,29 @@ Choose the support order from scratch. Possible shapes include:
 
 Preserve every required point, but do not give every point equal space simply because each appears in the prompt. Do not force a universal essay template.
 
+## Lexical reconstruction
+
+Before polishing sentences, identify two or three content-bearing lexical anchors for each major idea. Prefer nouns and verbs supplied by the subject itself over generic analytical wrappers.
+
+If a major sentence could be moved almost unchanged into many unrelated essays, silently produce at least two materially different versions and choose the one that is more content-specific without becoming obscure.
+
+Prefer direct actions when the source supports them: customers `switch`, rivals `ship`, managers `fund` or `defer`, factories `cut` labor hours, software `retries`, margins `shrink`. Do not replace ordinary words with rarer synonyms merely to create variation.
+
+Watch concentrations of generic phrase families such as:
+
+- `X works the same way`;
+- `X can also...`;
+- `The result can be...`;
+- `X is a useful example`;
+- `Even with those limits...`;
+- `None of this means...`;
+- mirrored `In X... In Y...` contrasts;
+- polished `not only X, but Y` or `not because X, but because Y` endings.
+
+None is mechanically forbidden. If the phrase mainly organizes the essay instead of carrying subject matter, rebuild the sentence around the underlying fact, object, or action.
+
+Do not synonym-spin. Change the sentence's subject, predicate, information order, or abstraction level when the underlying construction is generic.
+
 ## Writing rules
 
 - Prefer precise nouns and verbs over vague abstraction.
@@ -61,6 +84,7 @@ After drafting, reread the entire piece and remove:
 - paragraphs or sentences doing suspiciously uniform rhetorical jobs;
 - repeated transition scaffolding;
 - repeated mirrored contrasts, colon-led summaries, or list structures;
+- abstract wrappers that can be replaced with a direct action or concrete object;
 - generic openings and closings;
 - over-explained conclusions;
 - unnecessary restatement;
@@ -69,7 +93,7 @@ After drafting, reread the entire piece and remove:
 
 Do not over-polish natural irregularity that follows from the content itself.
 
-## Architecture audit
+## Architecture and lexical audit
 
 Internally reduce the draft to a short sequence of rhetorical functions, for example:
 
@@ -77,16 +101,18 @@ Internally reduce the draft to a short sequence of rhetorical functions, for exa
 
 If that sequence looks like a generic essay template rather than the natural shape of the subject, rebuild it.
 
-Check specifically:
+Then inspect the wording itself:
 
 - Did the rewrite reuse the source opening without a substantive reason?
 - Did it preserve the source sentence order too closely?
 - Did every requested subpoint receive nearly equal space?
 - Are transitions announcing relationships the reader can already infer?
 - Are several sentences built from the same contrast or enumeration pattern?
+- Which phrases could be pasted into an unrelated analytical essay with almost no change?
+- Which abstract nouns or generic verbs can be replaced by content-bearing language already available in the subject?
 - Does the last sentence merely restate a thesis already established?
 
-Do not introduce randomness for its own sake. Structural differences must remain clear and logically justified.
+Do not introduce randomness for its own sake. Structural and lexical differences must remain clear and logically justified.
 
 ## Fidelity check
 
