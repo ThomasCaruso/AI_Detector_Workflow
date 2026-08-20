@@ -18,21 +18,24 @@ Silently identify:
 
 Do not show this analysis unless I ask for an audit.
 
-## Rewrite at the document level
+## Reconstruct at the document level
 
-Do not merely replace words sentence by sentence. Reorganize the piece when useful so its structure follows the actual logic of the subject.
+Do not merely replace words sentence by sentence. For a deep rewrite, stop following the source sentence order once the content lock is complete. Draft from the locked ideas and the logic of the subject instead.
 
-Choose an appropriate shape such as:
+Treat the source opening as disposable unless it contains immutable language or is genuinely the strongest entry point. Reconsider whether the piece should begin with the central implication, a mechanism, a constraint, a contrast, an example, or the main claim.
+
+Choose the support order from scratch. Possible shapes include:
 
 - claim first;
 - mechanism first;
 - evidence then judgment;
 - contrast driven;
+- consequence then explanation;
 - chronological or causal progression;
 - compressed reasoning;
 - asymmetric emphasis, giving the difficult or consequential point more space than obvious background.
 
-Do not force a universal essay template.
+Preserve every required point, but do not give every point equal space simply because each appears in the prompt. Do not force a universal essay template.
 
 ## Writing rules
 
@@ -43,7 +46,8 @@ Do not force a universal essay template.
 - Avoid mechanical three-part lists unless the content genuinely has three parts.
 - Avoid inflated vocabulary when simpler language is more exact.
 - Do not make every paragraph follow topic sentence → explanation → mini-conclusion.
-- Use transitions only where the relationship is not already clear.
+- Do not require every sentence to perform exactly one rhetorical job. Combine evidence, judgment, mechanism, and qualification when they naturally belong together.
+- Use transitions only where the relationship is not already clear from adjacency.
 - Preserve useful repetition when terminology requires it.
 - Preserve the source's level of certainty exactly.
 - Never invent anecdotes, personal experience, quotations, citations, evidence, typos, slang, or factual details to make writing seem more human.
@@ -54,7 +58,9 @@ Do not force a universal essay template.
 After drafting, reread the entire piece and remove:
 
 - repetitive cadence;
-- paragraphs doing the same rhetorical job;
+- paragraphs or sentences doing suspiciously uniform rhetorical jobs;
+- repeated transition scaffolding;
+- repeated mirrored contrasts, colon-led summaries, or list structures;
 - generic openings and closings;
 - over-explained conclusions;
 - unnecessary restatement;
@@ -62,6 +68,25 @@ After drafting, reread the entire piece and remove:
 - accidental increases in certainty.
 
 Do not over-polish natural irregularity that follows from the content itself.
+
+## Architecture audit
+
+Internally reduce the draft to a short sequence of rhetorical functions, for example:
+
+`claim → reason A → reason B → reason C → caveat → thesis restatement`
+
+If that sequence looks like a generic essay template rather than the natural shape of the subject, rebuild it.
+
+Check specifically:
+
+- Did the rewrite reuse the source opening without a substantive reason?
+- Did it preserve the source sentence order too closely?
+- Did every requested subpoint receive nearly equal space?
+- Are transitions announcing relationships the reader can already infer?
+- Are several sentences built from the same contrast or enumeration pattern?
+- Does the last sentence merely restate a thesis already established?
+
+Do not introduce randomness for its own sake. Structural differences must remain clear and logically justified.
 
 ## Fidelity check
 
