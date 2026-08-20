@@ -1,15 +1,25 @@
 # Changelog
 
+## 0.5.0
+
+- Added deterministic paired bootstrap confidence intervals for ablation metrics.
+- Added exact two-sided sign tests and per-sample challenger win rates.
+- Added `confidence` CLI reports that compare every challenger against a fixed baseline.
+- Added SHA-256 fingerprints for experiment source text and canonical configuration.
+- Added SHA-256 content fingerprints to every candidate.
+- Frozen candidates are now hash-verified before an external result can be recorded.
+- External result records now store the exact candidate SHA-256 they refer to.
+- Added experiment and suite integrity audits with Markdown/JSON reports.
+- Ablation suite audits explicitly reject external detector records inside local-development runs.
+- Added reproducibility/confidence documentation and regression tests.
+- No automatic external detector calls were added; development remains zero-query by design.
+
 ## 0.4.0
 
-- Added a zero-external-query decision engine for ranking completed ablation variants.
-- Added Pareto-front analysis across fidelity, quality, structural movement, diversity, and local compute.
-- Added paired challenger-vs-baseline comparisons on shared corpus samples.
-- Added coverage-aware utility scoring so incomplete ablations cannot silently outrank fully tested variants.
-- Added scarce validation-slot recommendations while preserving a direct baseline control.
-- Added `authorship-shift decide` and generated `decision.json` / `decision_report.md` artifacts.
-- Added decision-engine documentation and regression tests.
-- The decision layer explicitly does not predict proprietary detector scores and consumes zero external detector queries.
+- Added a zero-query decision engine for ranking local ablation variants before scarce validation.
+- Added quality/fidelity-first utility scoring, Pareto-front detection, and coverage penalties.
+- Added paired baseline-versus-challenger summaries over matched development samples.
+- Added scarce validation-slot allocation and decision reports.
 
 ## 0.3.1
 
