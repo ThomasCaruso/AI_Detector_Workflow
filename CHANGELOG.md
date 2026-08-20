@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0
+
+- Added content-addressed corpus manifests with genre, length-band, and text metrics.
+- Added corpus validation for changed hashes, missing files, exact duplicates, and very short samples.
+- Added deterministic genre-and-length-stratified development/holdout splitting.
+- Stratified split records now include the exact corpus-manifest SHA-256.
+- Added a zero-query local model-call estimator for every ablation variant and complete suites.
+- Added `index-corpus`, `validate-corpus`, and `estimate-ablation` CLI commands.
+- Added corpus/compute documentation and regression tests.
+- External detector behavior remains held out; no detector calls are made by these features.
+
 ## 0.5.0
 
 - Added deterministic paired bootstrap confidence intervals for ablation metrics.
