@@ -76,6 +76,39 @@ def _stable_order(entries: list[dict[str, Any]], seed: str) -> list[dict[str, An
     )
 
 
+def _rebalance_nonempty_partitions(
+    development: list[str],
+    holdout: list[str],
+    *,
+    seed: str,
+) -> tuple[list[str], list[str], dict[str, Any] | None]:
+    """Guarantee both partitions are nonempty when the corpus has at least two samples.
+
+    Singleton strata are hashed independently and can, in aggregate, land entirely on one
+    side. This deterministic fallback prevents a nominal holdout split from silently having
+    no holdout data.
+    """
+    total = len(development) + len(holdout)
+    if total < 2 or (development and holdout):
+        return development, holdout, None
+
+    source = development if development else holdout
+    destination_name = "holdout" if development else "development"
+    ordered = sorted(source, key=lambda path: sha256(f"{seed}:rebalance:{path}".encode("utf-8")).hexdigest())
+    moved = ordered[0]
+    source.remove(moved)
+    if destination_name == "holdout":
+        holdout.append(moved)
+    else:
+        development.append(moved)
+    return development, holdout, {
+        "applied": True,
+        "moved_path": moved,
+        "destination": destination_name,
+        "reason": "all singleton/hash-assigned samples landed in one partition",
+    }
+
+
 def stratified_split(
     manifest: dict[str, Any],
     *,
@@ -114,6 +147,7 @@ def stratified_split(
             "holdout": len(h),
         })
 
+    development, holdout, rebalance = _rebalance_nonempty_partitions(development, holdout, seed=seed)
     overlap = set(development) & set(holdout)
     if overlap:
         raise RuntimeError(f"Split overlap detected: {sorted(overlap)}")
@@ -125,6 +159,7 @@ def stratified_split(
             "holdout_fraction": holdout_fraction,
             "seed": seed,
             "strata": strata,
+            "fallback_rebalance": rebalance,
         },
     }
 
