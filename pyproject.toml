@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "authorship-shift"
+version = "0.2.0"
+description = "A quality-preserving research harness for studying AI-text detector robustness under distribution shift."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Thomas Caruso"}]
+dependencies = []
+
+[project.scripts]
+authorship-shift = "authorship_shift.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

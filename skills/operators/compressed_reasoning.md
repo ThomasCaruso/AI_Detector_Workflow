@@ -1,0 +1,1 @@
+Compress explanations the intended audience can infer, while preserving every required proposition. Spend more space on the least obvious causal or analytical steps. Avoid summary sentences that merely repeat the preceding paragraph.

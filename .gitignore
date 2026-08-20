@@ -1,0 +1,16 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.DS_Store
+
+# Local experiments may contain private source text.
+experiments/*
+!experiments/.gitkeep
+
+# Local reports/splits are experiment artifacts.
+corpus/split.json

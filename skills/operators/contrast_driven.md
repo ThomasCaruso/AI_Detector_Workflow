@@ -1,0 +1,1 @@
+Use a real contrast already present in the source as the organizing spine. Alternate only when the contrast advances the argument; do not force symmetrical sections. Resolve the contrast by showing which distinction actually matters.

@@ -1,0 +1,1 @@
+Allow the document to be structurally uneven when the ideas warrant it. Give important claims more space and supporting claims less. Avoid mirrored paragraph lengths, repeated paragraph templates, and a predictable claim-example-summary rhythm unless the content genuinely calls for them.

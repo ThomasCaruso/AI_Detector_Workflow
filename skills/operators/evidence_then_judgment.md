@@ -1,0 +1,1 @@
+Where the source contains evidence or concrete examples, present the strongest concrete observation before the higher-level judgment it supports. Do not fabricate evidence. Let the reader see the basis of the conclusion before stating the conclusion when that ordering remains clear.

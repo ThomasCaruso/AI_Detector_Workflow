@@ -1,0 +1,1 @@
+Organize the document around mechanism: establish what happens, explain why it happens, then show consequences. Background should appear only when a later causal step requires it. Paragraph boundaries should follow causal transitions rather than topic labels.

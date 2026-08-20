@@ -1,0 +1,1 @@
+Lead with the most consequential claim instead of background. Develop the reasoning outward from that claim. Move qualifications next to the exact claims they constrain rather than collecting them in a separate caveat paragraph. Remove any introductory material that the reader can infer after seeing the core argument.
