@@ -31,7 +31,10 @@ def _resolve_reference(base_dir: Path, value: str | Path) -> Path:
 
 def _resolve_entry(corpus_root: Path, entry: str) -> Path:
     raw = Path(entry)
-    candidates = (raw, corpus_root / raw, corpus_root / raw.name)
+    if raw.is_absolute():
+        candidates = (raw,)
+    else:
+        candidates = (corpus_root / raw, corpus_root / raw.name, raw)
     for candidate in candidates:
         if candidate.exists() and candidate.is_file():
             return candidate.resolve()
