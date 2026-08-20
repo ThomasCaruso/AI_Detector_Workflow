@@ -28,6 +28,19 @@ full
 
 The smoke config reduces planning and beam width to keep local compute modest while still exercising the major stages.
 
+With the checked-in `configs/smoke.json`, the conservative model-call upper bounds are:
+
+```text
+baseline             5 calls/run
+planning_revision   15 calls/run
+full                21 calls/run
+-------------------------------
+one-source batch    41 calls
+full 3-source run  123 calls
+```
+
+These are topology-based upper bounds, not token or wall-clock estimates. The regression suite locks these expectations so accidental compute growth is visible.
+
 ## 1. Install and confirm local models
 
 ```powershell
@@ -68,6 +81,8 @@ Expected plan:
 3 samples × 3 variants = 9 local runs
 ```
 
+Tasks are deliberately grouped by source, then variant. The first three tasks therefore compare `baseline`, `planning_revision`, and `full` on the same document. A regression test protects this ordering because the first bounded batch is intended to be a paired diagnostic.
+
 ## 4. Estimate compute before generation
 
 ```powershell
@@ -77,7 +92,7 @@ authorship-shift estimate-ablation `
   --config configs/smoke.json
 ```
 
-This consumes no model calls and no detector queries.
+This consumes no model calls and no detector queries. The expected full-suite upper bound is **123 local model calls**. If the estimate materially differs, inspect the configuration or pipeline topology before generating anything.
 
 ## 5. Run only the first three jobs initially
 
@@ -90,6 +105,8 @@ authorship-shift ablate `
   --judge-model gemma3 `
   --max-runs 3
 ```
+
+Those three runs are the three variants on one source and have a combined conservative ceiling of **41 local model calls**.
 
 Inspect those outputs before continuing. Specifically check for missing claims, altered numbers, unsupported additions, changed certainty, evaluator failures, malformed JSON, quality regressions, and obviously unreasonable model-call accounting.
 
@@ -129,6 +146,8 @@ Stop the smoke test and fix the pipeline before expanding the corpus if any of t
 - judges fail to return parseable results;
 - resumed runs overwrite or duplicate completed work;
 - measured model-call totals are missing or inconsistent;
+- the planned first three tasks are not the three variants on one source;
+- the smoke compute estimate exceeds the expected 123-call topology without an intentional configuration change;
 - any development child run records an external-detector query budget above zero.
 
 ## After the smoke test
