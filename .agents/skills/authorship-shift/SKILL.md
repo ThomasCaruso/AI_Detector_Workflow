@@ -4,7 +4,7 @@ description: Rewrite, draft, or revise prose so it is less formulaic, more natur
 license: MIT
 compatibility: Works in OpenAI Codex and other Agent Skills-compatible clients. No local model, Python package, API key, or network access required.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   project: "AuthorshipShift"
 ---
 
@@ -57,7 +57,17 @@ The structure should emerge from the subject, not from a fixed template. Vary wh
 
 See `references/WRITING_METHOD.md` for the general method and `references/STRUCTURAL_RECONSTRUCTION.md` when a rewrite remains polished but overly orderly.
 
-### 3. Draft naturally
+### 3. Build from lexical anchors
+
+Before polishing sentences, identify a few content-bearing nouns and verbs for each major idea. These should come from the subject itself rather than from generic analytical vocabulary.
+
+Prefer sentences built around concrete actions and objects when the content supports them. For example, a rival can `ship`, a customer can `switch`, a manager can `fund` or `defer`, a process can `cut` labor hours, and an API can `retry`. Do not replace a simple word with a rarer synonym merely to create variety.
+
+If a major sentence could be moved unchanged into many unrelated essays, silently produce at least two materially different renderings and choose the one that is more content-specific while remaining clear and faithful.
+
+See `references/LEXICAL_RECONSTRUCTION.md` for the detailed lexical method.
+
+### 4. Draft naturally
 
 Apply these rules:
 
@@ -70,12 +80,13 @@ Apply these rules:
 - Do not force every paragraph into topic sentence → explanation → mini-conclusion.
 - Do not require every sentence to perform exactly one rhetorical job. Combine evidence, judgment, mechanism, or qualification when they naturally belong together.
 - Use transitions only when the logical relationship is not already clear from adjacency.
+- Do not lean repeatedly on generic frames such as `X works the same way`, `X can also`, `The result can be`, `X is a useful example`, `Even with those limits`, or polished `not only X, but Y` constructions. Keep one when it is genuinely the clearest formulation; otherwise state the underlying mechanism directly.
 - Keep useful repetition when terminology or reasoning requires it.
 - Preserve the source's degree of confidence. Do not turn “may,” “suggests,” or “is associated with” into certainty.
 - Do not fabricate anecdotes, personal experience, quotes, citations, typos, slang, or factual detail to make prose seem more human.
 - Do not insert deliberate errors or awkwardness.
 
-### 4. Run a global revision
+### 5. Run a global revision
 
 Read the draft as a complete document rather than as isolated sentences. Fix:
 
@@ -84,6 +95,7 @@ Read the draft as a complete document rather than as isolated sentences. Fix:
 - paragraphs or sentences that perform suspiciously uniform rhetorical jobs;
 - repeated transition scaffolding;
 - repeated mirrored contrasts or list structures;
+- abstract wrappers that could be replaced by a direct action or concrete object;
 - over-explained conclusions;
 - generic openings or closings;
 - abrupt changes in logic;
@@ -91,7 +103,7 @@ Read the draft as a complete document rather than as isolated sentences. Fix:
 
 Do not polish away useful irregularity that comes naturally from the content.
 
-### 5. Run an architecture audit
+### 6. Run an architecture and lexical audit
 
 Internally reduce the draft to a short sequence of rhetorical functions, for example:
 
@@ -99,18 +111,21 @@ Internally reduce the draft to a short sequence of rhetorical functions, for exa
 
 If the sequence looks like a generic essay template rather than the natural shape of the subject, rebuild it.
 
-Check specifically:
+Then scan the wording itself. Check specifically:
 
 - Did the rewrite reuse the source opening without a substantive reason?
 - Did it preserve the source sentence order too closely?
 - Did every requested subpoint receive nearly equal space?
 - Are transitions announcing relationships the reader can already infer?
 - Are several sentences built from the same contrast, colon, or enumeration pattern?
+- Which sentences rely on abstract nouns such as `pressure`, `dynamic`, `process`, `approach`, or `outcome` where the source provides a more concrete object?
+- Which sentences rely on generic relationship verbs such as `create`, `drive`, `enable`, `lead to`, or `result in` where the subject provides a more exact action?
+- Which phrase could be pasted into an unrelated analytical essay with almost no change?
 - Does the last sentence merely restate a thesis already established?
 
-Do not introduce randomness for its own sake. Structural differences must remain clear and logically justified.
+Revise the clearest offenders. Do not introduce randomness for its own sake. Structural and lexical differences must remain clear, ordinary, and logically justified.
 
-### 6. Run a fidelity check
+### 7. Run a fidelity check
 
 Before returning the result, compare it against the silent content lock.
 
@@ -140,7 +155,7 @@ If the user asks for:
 
 - **rewrite / polish / make natural** — return one finished version;
 - **light edit** — preserve structure and voice more closely;
-- **deep rewrite** — reconstruct from the content lock, allowing substantial reorganization while preserving meaning;
+- **deep rewrite** — reconstruct from the content lock, allowing substantial reorganization and lexical reconstruction while preserving meaning;
 - **alternatives** — provide genuinely different structures, not synonym variants;
 - **audit** — return the final prose plus a short fidelity report listing preserved immutable details, major structural changes, and any unresolved ambiguity.
 
