@@ -32,26 +32,6 @@ GENERIC_SENTENCE_STARTS = {
     "ultimately",
 }
 
-COMMON_SENTENCE_FIRST_WORDS = {
-    "a",
-    "an",
-    "another",
-    "because",
-    "competition",
-    "even",
-    "if",
-    "in",
-    "it",
-    "large",
-    "none",
-    "some",
-    "that",
-    "the",
-    "this",
-    "when",
-    "while",
-}
-
 
 def _ngrams(tokens: Sequence[str], n: int) -> set[tuple[str, ...]]:
     if len(tokens) < n:
@@ -119,14 +99,18 @@ def generic_sentence_start_ratio(text: str) -> float:
 def extract_immutables(source: str) -> list[str]:
     """Extract conservative surface forms worth checking exactly.
 
-    This is intentionally a precheck, not a semantic-fidelity judge. It is
-    strongest for numbers and distinctive capitalized names.
+    This is intentionally a precheck, not a semantic-fidelity judge. To avoid
+    false positives from ordinary sentence-initial capitalization, it tracks
+    numbers, multiword capitalized names, and all-caps identifiers. Single-word
+    title-case names should come from the semantic/content lock in a full run.
     """
 
     items = set(NUMBER_RE.findall(source))
     for phrase in CAPITALIZED_PHRASE_RE.findall(source):
-        first = phrase.split()[0].lower()
-        if first not in COMMON_SENTENCE_FIRST_WORDS:
+        parts = phrase.split()
+        if len(parts) >= 2:
+            items.add(phrase)
+        elif phrase.isupper() and len(phrase) > 1:
             items.add(phrase)
     return sorted(items, key=lambda value: (value.lower(), value))
 
