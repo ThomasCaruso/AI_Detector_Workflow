@@ -6,6 +6,9 @@
 - Guaranteed a nonempty stratified holdout whenever a corpus has at least two usable samples, including singleton-strata fallback behavior.
 - Persisted measured local model-call totals in ablation summaries instead of relying only on pre-run candidate-count estimates.
 - Added measured model calls to paired confidence analysis and compute-aware decision ranking, while retaining estimates as a fallback when measured totals are unavailable.
+- Made corpus manifests, deterministic split references, and ablation sample identities portable across clone locations instead of depending on absolute machine paths.
+- Made deterministic splitting hash corpus-relative paths rather than only basenames, preventing same-named files in different genre folders from being artificially coupled.
+- Added a three-document, three-variant offline smoke harness with a locked 123-call local compute ceiling, zero detector budget, and CI preflight coverage.
 - Updated validation and decision documentation for the measured-compute workflow and added regression coverage for the new accounting behavior.
 - Synchronized the runtime package version and project metadata at `0.8.0`.
 - External detector budgets remain zero for development, ablation, and holdout child runs.
