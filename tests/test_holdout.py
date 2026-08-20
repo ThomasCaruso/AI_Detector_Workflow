@@ -1,7 +1,10 @@
 import json
+from pathlib import Path
+import shutil
 
 from authorship_shift.holdout import prepare_holdout_lock, verify_holdout_lock
 from authorship_shift.models import read_json
+from authorship_shift.provenance import canonical_json_sha256
 
 
 def _fixture(tmp_path):
@@ -26,6 +29,19 @@ def _fixture(tmp_path):
     return corpus, dev, held, split, development_suite
 
 
+def _partition_payload(lock):
+    return {
+        "development": [str(sample["path"]) for sample in lock.get("samples", [])],
+        "holdout": [],
+        "metadata": {
+            "method": "locked_holdout_rebound_as_validation_partition",
+            "source_split": str(lock.get("split_file", "")),
+            "source_split_sha256": lock.get("split_sha256"),
+            "sample_hashes": {str(sample["path"]): sample.get("sha256") for sample in lock.get("samples", [])},
+        },
+    }
+
+
 def test_holdout_lock_binds_split_decision_and_sample_hashes(tmp_path):
     corpus, _, held, split, development_suite = _fixture(tmp_path)
     lock_path = prepare_holdout_lock(
@@ -36,9 +52,13 @@ def test_holdout_lock_binds_split_decision_and_sample_hashes(tmp_path):
         slots=2,
     )
     lock = read_json(lock_path)
-    assert lock["schema_version"] == 2
+    assert lock["schema_version"] == 3
+    assert lock["path_mode"] == "portable_relative"
     assert lock["selected_variants"] == ["baseline", "full"]
     assert lock["sample_count"] == 1
+    assert lock["samples"][0]["path"] == "held.txt"
+    assert not Path(lock["corpus_root"]).is_absolute()
+    assert not Path(lock["split_file"]).is_absolute()
     assert lock["partition_sha256"]
     assert verify_holdout_lock(lock_path)["ok"] is True
 
@@ -46,6 +66,64 @@ def test_holdout_lock_binds_split_decision_and_sample_hashes(tmp_path):
     verification = verify_holdout_lock(lock_path)
     assert verification["ok"] is False
     assert any("holdout sample changed" in error for error in verification["errors"])
+
+
+def test_holdout_lock_survives_project_relocation(tmp_path):
+    original = tmp_path / "original"
+    original.mkdir()
+    corpus, _, _, split, development_suite = _fixture(original)
+    lock_path = prepare_holdout_lock(
+        corpus,
+        development_suite,
+        original / "holdout",
+        split_file=split,
+        slots=2,
+    )
+    original_fingerprint = read_json(lock_path)["lock_fingerprint"]
+
+    moved = tmp_path / "moved"
+    shutil.copytree(original, moved)
+    shutil.rmtree(original)
+
+    moved_lock = moved / "holdout" / "holdout_lock.json"
+    verification = verify_holdout_lock(moved_lock)
+    assert verification["ok"] is True
+    assert verification["lock_fingerprint"] == original_fingerprint
+
+
+def test_legacy_absolute_v2_lock_still_verifies(tmp_path):
+    corpus, _, _, split, development_suite = _fixture(tmp_path)
+    output = tmp_path / "holdout"
+    lock_path = prepare_holdout_lock(
+        corpus,
+        development_suite,
+        output,
+        split_file=split,
+        slots=2,
+    )
+    lock = read_json(lock_path)
+    base = lock_path.parent
+    corpus_root = (base / lock["corpus_root"]).resolve()
+
+    lock["schema_version"] = 2
+    lock.pop("path_mode", None)
+    lock["corpus_root"] = str(corpus_root)
+    lock["development_suite"] = str((base / lock["development_suite"]).resolve())
+    lock["split_file"] = str((base / lock["split_file"]).resolve())
+    if lock.get("decision_file"):
+        lock["decision_file"] = str((base / lock["decision_file"]).resolve())
+    for sample in lock["samples"]:
+        sample["path"] = str((corpus_root / sample["path"]).resolve())
+
+    partition = _partition_payload(lock)
+    lock["partition_sha256"] = canonical_json_sha256(partition)
+    lock["lock_fingerprint"] = canonical_json_sha256({
+        key: value for key, value in lock.items() if key not in {"created_at", "lock_fingerprint"}
+    })
+    lock_path.write_text(json.dumps(lock, indent=2), encoding="utf-8")
+    (output / "holdout_partition.json").write_text(json.dumps(partition, indent=2), encoding="utf-8")
+
+    assert verify_holdout_lock(lock_path)["ok"] is True
 
 
 def test_holdout_partition_tampering_is_detected(tmp_path):
