@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0
+
+- Added a zero-external-query decision engine for ranking completed ablation variants.
+- Added Pareto-front analysis across fidelity, quality, structural movement, diversity, and local compute.
+- Added paired challenger-vs-baseline comparisons on shared corpus samples.
+- Added coverage-aware utility scoring so incomplete ablations cannot silently outrank fully tested variants.
+- Added scarce validation-slot recommendations while preserving a direct baseline control.
+- Added `authorship-shift decide` and generated `decision.json` / `decision_report.md` artifacts.
+- Added decision-engine documentation and regression tests.
+- The decision layer explicitly does not predict proprietary detector scores and consumes zero external detector queries.
+
 ## 0.3.1
 
 - Added per-stage local model-call instrumentation and `pipeline_stats.json`.
