@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 import json
 
-from .ablation import AblationVariant, variant_registry
+from .ablation import variant_registry
 from .compute import estimate_pipeline_calls
 
 
@@ -116,7 +116,7 @@ def analyze_smoke_suite(
     if int(plan.get("task_count", 0) or 0) != expected_task_count or len(tasks) != expected_task_count:
         errors.append(f"plan task count drifted: expected {expected_task_count}, found {plan.get('task_count')} / {len(tasks)} tasks")
 
-    plan_variant_names = [str((row.get("variant") or {}).get("name", "")) for row in plan.get("variants", [])]
+    plan_variant_names = [str(row.get("name", "")) for row in plan.get("variants", [])]
     if plan_variant_names != variants:
         errors.append(f"plan variants differ from smoke config: expected {variants}, found {plan_variant_names}")
 
