@@ -7,8 +7,9 @@ import sys
 
 from .ablation import build_ablation_plan, run_ablation_suite, write_ablation_plan, write_ablation_report
 from .claim_diff import claim_coverage_report
+from .compute import estimate_ablation_suite, write_compute_estimate
 from .confidence import analyze_confidence, write_confidence_report
-from .corpus import split_directory
+from .corpus import build_manifest, split_directory, validate_manifest
 from .decision import analyze_suite, write_decision_report
 from .diversity import summarize_diversity
 from .experiment import Experiment
@@ -117,8 +118,29 @@ def cmd_report(args):
     print(write_report(args.experiment, args.output))
 
 
+def cmd_index_corpus(args):
+    path = build_manifest(args.directory, output=args.output)
+    validation = validate_manifest(path)
+    print(path)
+    print(f"Indexed {validation['sample_count']} samples; warnings={len(validation['warnings'])}, errors={len(validation['errors'])}")
+
+
+def cmd_validate_corpus(args):
+    validation = validate_manifest(args.manifest)
+    print(json.dumps(validation, indent=2))
+    if not validation["ok"]:
+        raise RuntimeError("Corpus validation failed")
+
+
 def cmd_split_corpus(args):
-    print(split_directory(args.directory, holdout_fraction=args.holdout, seed=args.seed, output=args.output))
+    print(split_directory(
+        args.directory,
+        holdout_fraction=args.holdout,
+        seed=args.seed,
+        output=args.output,
+        stratify=args.stratify,
+        manifest_path=args.manifest,
+    ))
 
 
 def cmd_ablation_plan(args):
@@ -129,6 +151,29 @@ def cmd_ablation_plan(args):
     path = write_ablation_plan(args.output, plan)
     print(path)
     print(f"Planned {plan['task_count']} local runs ({plan['sample_count']} samples x {plan['variant_count']} variants)")
+
+
+def cmd_estimate_ablation(args):
+    config = _load_config(args.config)
+    variants = _configured_variants(config, args.variants)
+    max_samples = args.max_samples if args.max_samples is not None else config.get("ablation", {}).get("max_development_samples")
+    report = write_compute_estimate(
+        args.corpus,
+        config,
+        args.output,
+        variants=variants,
+        split_file=args.split,
+        max_samples=max_samples,
+    )
+    estimate = estimate_ablation_suite(
+        args.corpus,
+        config,
+        variants=variants,
+        split_file=args.split,
+        max_samples=max_samples,
+    )
+    print(report)
+    print(f"Upper bound: {estimate['total_model_calls_upper_bound']} local model calls across {estimate['run_count']} runs")
 
 
 def cmd_ablate(args):
@@ -201,10 +246,19 @@ def build_parser():
     s = sub.add_parser("record-external"); s.add_argument("--experiment", required=True); s.add_argument("--detector", required=True); s.add_argument("--version"); s.add_argument("--label", required=True); s.add_argument("--score", type=float); s.add_argument("--candidate", required=True); s.add_argument("--notes"); s.set_defaults(func=cmd_record_external)
     s = sub.add_parser("status"); s.add_argument("--experiment", required=True); s.set_defaults(func=cmd_status)
     s = sub.add_parser("report"); s.add_argument("--experiment", required=True); s.add_argument("--output"); s.set_defaults(func=cmd_report)
-    s = sub.add_parser("split-corpus"); s.add_argument("directory"); s.add_argument("--holdout", type=float, default=0.2); s.add_argument("--seed", default="authorship-shift"); s.add_argument("--output"); s.set_defaults(func=cmd_split_corpus)
+
+    s = sub.add_parser("index-corpus", help="Build a content-addressed corpus manifest")
+    s.add_argument("directory"); s.add_argument("--output"); s.set_defaults(func=cmd_index_corpus)
+    s = sub.add_parser("validate-corpus", help="Validate corpus files against a manifest")
+    s.add_argument("--manifest", required=True); s.set_defaults(func=cmd_validate_corpus)
+    s = sub.add_parser("split-corpus")
+    s.add_argument("directory"); s.add_argument("--holdout", type=float, default=0.2); s.add_argument("--seed", default="authorship-shift"); s.add_argument("--output"); s.add_argument("--stratify", action="store_true"); s.add_argument("--manifest"); s.set_defaults(func=cmd_split_corpus)
 
     s = sub.add_parser("ablation-plan", help="Plan a zero-external-query component ablation suite")
     s.add_argument("--corpus", required=True); s.add_argument("--output", required=True); s.add_argument("--config", default="configs/default.json"); s.add_argument("--split"); s.add_argument("--variants"); s.add_argument("--max-samples", type=int); s.set_defaults(func=cmd_ablation_plan)
+
+    s = sub.add_parser("estimate-ablation", help="Estimate local model-call upper bounds without running models")
+    s.add_argument("--corpus", required=True); s.add_argument("--output", required=True); s.add_argument("--config", default="configs/default.json"); s.add_argument("--split"); s.add_argument("--variants"); s.add_argument("--max-samples", type=int); s.set_defaults(func=cmd_estimate_ablation)
 
     s = sub.add_parser("ablate", help="Run local Ollama ablations without external detector queries")
     s.add_argument("--corpus", required=True); s.add_argument("--output", required=True); s.add_argument("--config", default="configs/default.json"); s.add_argument("--split"); s.add_argument("--variants"); s.add_argument("--max-samples", type=int); s.add_argument("--max-runs", type=int); s.add_argument("--model"); s.add_argument("--models"); s.add_argument("--judge-model"); s.add_argument("--no-resume", dest="resume", action="store_false"); s.set_defaults(func=cmd_ablate, resume=True)
