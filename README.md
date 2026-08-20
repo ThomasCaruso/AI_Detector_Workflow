@@ -6,9 +6,9 @@ Commercial AI-text detectors are treated as scarce held-out evaluations, not an 
 
 ## Current version
 
-**v0.6.0**
+**v0.7.0**
 
-The project combines local generation/revision experiments with component ablations, corpus indexing and stratified holdouts, conservative local-compute estimation, paired statistical confidence analysis, content-addressed provenance, frozen-candidate integrity checks, and a zero-query decision layer for deciding which variants are worth scarce external validation.
+The project combines local generation/revision experiments with component ablations, content-addressed corpus indexing, stratified holdouts, conservative local-compute estimation, paired statistical confidence analysis, content-addressed provenance, a locked holdout-validation protocol, frozen-candidate integrity checks, and a zero-query decision layer for deciding which variants are worth scarce external validation.
 
 ## Research question
 
@@ -20,7 +20,7 @@ The system keeps three objectives separate:
 2. **Writing quality** — a candidate cannot improve by becoming worse prose.
 3. **External detector behavior** — measured only at predetermined milestones.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/RESEARCH_PROTOCOL.md`](docs/RESEARCH_PROTOCOL.md), [`docs/ABLATIONS.md`](docs/ABLATIONS.md), [`docs/DECISION_ENGINE.md`](docs/DECISION_ENGINE.md), [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md), and [`docs/CORPUS_AND_COMPUTE.md`](docs/CORPUS_AND_COMPUTE.md).
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/RESEARCH_PROTOCOL.md`](docs/RESEARCH_PROTOCOL.md), [`docs/ABLATIONS.md`](docs/ABLATIONS.md), [`docs/DECISION_ENGINE.md`](docs/DECISION_ENGINE.md), [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md), [`docs/CORPUS_AND_COMPUTE.md`](docs/CORPUS_AND_COMPUTE.md), and [`docs/HOLDOUT_PROTOCOL.md`](docs/HOLDOUT_PROTOCOL.md).
 
 ## Zero-spend development
 
@@ -29,7 +29,7 @@ development external detector queries: 0
 milestone external detector budget:      5
 ```
 
-Ablation-suite child experiments forcibly set their external budget to **0**.
+Ablation and holdout child experiments forcibly set their external budget to **0**.
 
 ## Installation
 
@@ -105,25 +105,25 @@ The split stores the manifest SHA-256 so the development/holdout assignment is t
 Preview the exact task matrix:
 
 ```bash
-authorship-shift ablation-plan --corpus corpus --output ablations/v06 --split corpus/split.json
+authorship-shift ablation-plan --corpus corpus --output ablations/v07 --split corpus/split.json
 ```
 
 Estimate the local model-call upper bound **without running a model**:
 
 ```bash
-authorship-shift estimate-ablation --corpus corpus --split corpus/split.json --output ablations/v06
+authorship-shift estimate-ablation --corpus corpus --split corpus/split.json --output ablations/v07
 ```
 
 Run locally:
 
 ```bash
-authorship-shift ablate --corpus corpus --output ablations/v06 --split corpus/split.json --models "gemma3,qwen3:8b,llama3.1:8b" --judge-model gemma3
+authorship-shift ablate --corpus corpus --output ablations/v07 --split corpus/split.json --models "gemma3,qwen3:8b,llama3.1:8b" --judge-model gemma3
 ```
 
 Cap a session to three new runs:
 
 ```bash
-authorship-shift ablate --corpus corpus --output ablations/v06 --split corpus/split.json --models "gemma3,qwen3:8b" --max-runs 3
+authorship-shift ablate --corpus corpus --output ablations/v07 --split corpus/split.json --models "gemma3,qwen3:8b" --max-runs 3
 ```
 
 Suites resume by default. The default config uses at most five development samples.
@@ -145,7 +145,7 @@ Suites resume by default. The default config uses at most five development sampl
 Do not rely on aggregate means alone. Run paired analysis across the same development samples:
 
 ```bash
-authorship-shift confidence --suite ablations/v06 --baseline baseline
+authorship-shift confidence --suite ablations/v07 --baseline baseline
 ```
 
 This writes `confidence.json` and `confidence_report.md` with deterministic bootstrap confidence intervals, exact sign tests, paired win rates, and oriented improvements for fidelity, quality, gate survival, structural movement, diversity, and candidate count.
@@ -157,10 +157,40 @@ These values are local research diagnostics only; they do not predict a propriet
 After the ablation suite and confidence pass:
 
 ```bash
-authorship-shift decide --suite ablations/v06 --slots 3
+authorship-shift decide --suite ablations/v07 --slots 3
 ```
 
-The decision engine ranks variants using quality/fidelity-first utility, Pareto efficiency, coverage, structural movement, diversity, and compute cost. It suggests which variants deserve scarce validation slots without querying a detector.
+The decision engine ranks variants using quality/fidelity-first utility, Pareto efficiency, coverage, structural movement, diversity, and compute cost. It suggests which variants deserve validation slots without querying a detector.
+
+## Locked holdout validation
+
+Once development is finished, lock the exact holdout samples and development-selected variants **before generating holdout results**:
+
+```bash
+authorship-shift prepare-holdout \
+  --corpus corpus \
+  --development-suite ablations/v07 \
+  --split corpus/split.json \
+  --output holdout/v07 \
+  --slots 3
+```
+
+Verify the lock:
+
+```bash
+authorship-shift check-holdout --lock holdout/v07/holdout_lock.json
+```
+
+Run only the locked validation matrix:
+
+```bash
+authorship-shift run-holdout \
+  --lock holdout/v07/holdout_lock.json \
+  --models "gemma3,qwen3:8b" \
+  --judge-model gemma3
+```
+
+The lock fingerprints the source split, development decision, selected variants, and every holdout text. If any of those change, validation refuses to run. The baseline is automatically included for paired held-out comparison. External detector budgets remain zero throughout this phase.
 
 ## Tamper-evident experiment records
 
@@ -175,7 +205,7 @@ authorship-shift audit --target experiments/product_distribution
 Audit a full ablation suite:
 
 ```bash
-authorship-shift audit --target ablations/v06 --suite
+authorship-shift audit --target ablations/v07 --suite
 ```
 
 Legacy experiments remain readable; missing pre-v0.5 hashes are surfaced as warnings instead of being backfilled as if they had existed originally.
@@ -211,7 +241,9 @@ paired confidence analysis
         ↓
 zero-query decision engine
         ↓
-held-out validation
+LOCK decision + holdout texts
+        ↓
+held-out local validation
         ↓
 scarce external evaluation
 ```
