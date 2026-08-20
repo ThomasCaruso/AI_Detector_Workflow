@@ -22,11 +22,9 @@ Competition can accelerate technological innovation because it changes the cost 
 
 Competition can accelerate technological innovation because it changes the cost of standing still. A company operating without serious rivals can afford to improve slowly, protect comfortable margins, and postpone difficult bets; a company facing capable competitors cannot. When several firms pursue the same customers, each has an incentive to make its product faster, more reliable, easier to use, or meaningfully different before someone else does. That pressure also reaches costs. If one competitor discovers a cheaper manufacturing process, a more efficient model architecture, or a better distribution system, others must respond or accept weaker margins and higher prices. Competition can therefore turn efficiency from an internal preference into a survival requirement. It also rewards risk taking. A firm that refuses to fund uncertain research may preserve cash in the short term, but it risks being displaced by a rival willing to pursue a new battery chemistry, semiconductor design, software approach, or production method. The same dynamic can shorten problem-solving cycles: technical failures, customer complaints, and bottlenecks become urgent when another company is actively trying to win the same market. None of this means competition automatically produces the best innovation. Excessive pressure can encourage rushed products, duplicated research, secrecy, short-term decision making, or investment in features that are easy to market rather than genuinely useful. Some technologies also require long development horizons that are poorly served by constant commercial pressure. Even so, where firms can compete on real performance and customers can switch between them, rivalry tends to raise the penalty for complacency. Innovation becomes less dependent on whether a company happens to feel ambitious and more tied to a concrete consequence: improve the product, lower the cost, solve the problem, or risk losing ground to someone who will. That pressure can make progress arrive years earlier than it otherwise would.
 
-## AuthorshipShift v1.1 reconstruction candidate
+## AuthorshipShift v1.1 observed output
 
-When two companies can lose the same customer, a technical problem stops being merely an internal inconvenience. A slow product, an expensive manufacturing step, or a weak feature becomes something a rival can exploit in ways customers can immediately compare themselves. That is one reason competition often compresses the time between an idea and a usable technology. Firms do not improve only because engineers want to make better things; they improve because someone else may ship first, charge less, or solve the customer’s problem more convincingly. Cost pressure works the same way. A cheaper battery process or more efficient cloud architecture can give one company room to cut prices, raise margins, or invest more heavily, forcing competitors to search for their own efficiencies. Risk also looks different in a contested market. An uncertain research project may be easier to reject when the existing business feels secure, while the possibility of being overtaken can make the same bet worth funding. Space launch is a useful example: reusable rockets mattered scientifically, but competition around launch price, reliability, and turnaround created a commercial reason to keep attacking the engineering problems. The pressure can become destructive. Teams may rush releases, hide research, duplicate work, or favor improvements that are easy to sell over projects whose value will take years to appear. Basic research and infrastructure are especially vulnerable when returns are distant or hard for one company to capture. Competition therefore works best as a source of urgency, not as a substitute for every other innovation system. Public research, open standards, and cooperation can support work that markets neglect. What rivalry changes most is the consequence of delay: an organization that postpones an improvement is not simply choosing a slower schedule; it is giving another organization time to turn that delay into an advantage.
-
-The v1.1 candidate is exactly 300 words under whitespace token counting. External detector observations are pending.
+Competition can accelerate technological innovation because it makes delay expensive. When several companies are chasing the same customers, none can assume that a current advantage will last and customers can switch without much friction. A rival can release a faster chip, a cheaper battery, a better interface, or a more efficient manufacturing process and force everyone else to respond. That pressure turns improvement from an optional long-term project into a near-term competitive necessity. Cost reduction works the same way. If one firm learns to produce the same product with less material, fewer labor hours, or lower energy use, competitors either find comparable efficiencies or accept weaker margins and higher prices. Competition can also change how companies think about risk. In a protected market, managers may have little reason to fund an uncertain technology when the existing product already sells. In a contested market, refusing to experiment can be more dangerous than experimentation itself, so firms are more willing to test new designs, business models, and production methods. The result can be faster problem solving because technical bottlenecks that might otherwise remain tolerable become urgent. Space launch is a useful example: when providers compete on cost, reliability, payload capacity, and turnaround time, reusable rockets and faster launch operations become strategically valuable rather than merely interesting engineering goals. Competition is not automatically beneficial, however. Excessive short-term pressure can push firms to copy rivals, rush unsafe products, underinvest in basic research, or protect intellectual property so aggressively that useful knowledge spreads more slowly. Large research programs also sometimes require cooperation or patient funding that markets do not reward quickly. Even with those limits, competition often accelerates innovation by attaching immediate economic consequences to technical progress. Companies innovate not only because improvement is possible, but because standing still creates an opening for someone else.
 
 ## Observed external metadata
 
@@ -34,39 +32,56 @@ The v1.1 candidate is exactly 300 words under whitespace token counting. Externa
 | --- | ---: | ---: |
 | Control | 73% AI | 100% AI |
 | AuthorshipShift v1.0 | 0% AI | 100% AI |
-| AuthorshipShift v1.1 | pending | pending |
+| AuthorshipShift v1.1 | 23% AI | 100% AI |
 
 These scores are volatile external measurements and are recorded only because they were part of the experiment. A detector score is not a ground-truth quality metric.
 
 ## Qualitative findings
 
-### What improved in v1.0
+### v1.0 structural failure
 
-- The treatment output is more compressed and less padded.
-- It uses stronger causal framing and fewer generic examples.
-- It preserves the requested counterpoint rather than becoming one-sided.
-- One external detector changed substantially, indicating that the rewrite was not merely cosmetic.
+1. The opening was copied exactly.
+2. The rhetorical sequence remained unusually tidy: premise → product pressure → cost pressure → risk → speed → counterpoint → qualified conclusion.
+3. Transitions were highly legible and evenly distributed.
+4. Balanced constructions were frequent.
+5. Each sentence had one obvious rhetorical job.
+6. The ending resolved the argument into a polished thesis restatement.
 
-### What did not change enough in v1.0
+### v1.1 improvement
 
-1. **The opening was copied exactly.** Both versions begin with `Competition can accelerate technological innovation because it changes the cost of standing still.` A deep rewrite should reconsider the opening unless the wording is immutable.
-2. **The rhetorical sequence remained unusually tidy.** The treatment still moves premise → product pressure → cost pressure → risk → speed → counterpoint → qualified conclusion.
-3. **Transitions remain highly legible and evenly distributed.** Examples include `That pressure also`, `Competition can therefore`, `It also`, `The same dynamic`, `None of this means`, and `Even so`.
-4. **Balanced constructions are frequent.** Several sentences are built as polished oppositions or enumerations, which creates a consistently engineered cadence.
-5. **Each sentence has one obvious rhetorical job.** Real analytical prose often allows evidence, qualification, and judgment to coexist inside a sentence or cluster rather than assigning each step its own clean slot.
-6. **The ending resolves the argument too completely.** It restates the governing thesis in a polished form rather than ending on the most consequential implication.
+Version 1.1 did alter the opening and reconstruct more of the paragraph rather than closely paraphrasing the control. It also preserved the required mechanisms and limitation.
 
-## v1.1 changes under test
+### v1.1 lexical failure
 
-For deep rewrites, AuthorshipShift now reconstructs from the semantic/content lock rather than revising while following the source sentence order. Version 1.1 explicitly:
+The second test exposed a different problem: even after structural reconstruction, the wording still relied heavily on generic analytical phrase families and abstract wrappers.
 
-- resets the opening unless it is genuinely the strongest or immutable formulation;
-- chooses the support order from scratch;
-- allows asymmetric emphasis rather than allocating similar space to every requested subpoint;
-- combines rhetorical functions when natural;
-- reduces transition scaffolding where adjacency already carries the logic;
-- checks for repeated balanced constructions and enumeration patterns;
-- avoids automatically resolving the final sentence into a complete restatement of the thesis;
-- runs a final architecture audit in addition to the fidelity check.
+Examples include:
 
-The goal is a better, less templated piece of writing while preserving meaning and epistemic fidelity.
+- `makes delay expensive`;
+- `force everyone else to respond`;
+- `That pressure turns improvement...`;
+- `Cost reduction works the same way`;
+- `Competition can also change how companies think about risk`;
+- the mirrored `In a protected market... In a contested market...` construction;
+- `The result can be...`;
+- `Space launch is a useful example`;
+- `Competition is not automatically beneficial, however`;
+- `Even with those limits...`;
+- the polished ending `not only because..., but because...`.
+
+None of these phrases is individually wrong. The problem is their concentration. They organize the paragraph with language that could be transferred into many unrelated analytical essays with only small substitutions.
+
+## v1.2 change under test
+
+Version 1.2 adds a lexical reconstruction pass. It does not modify tokenization or model sampling parameters; a portable Skill cannot directly control those systems. Instead it changes the instructions governing sentence construction:
+
+- identify content-bearing lexical anchors before polishing;
+- prefer domain nouns and exact actions over abstract analytical wrappers;
+- rebuild sentences that could be pasted unchanged into unrelated essays;
+- inspect generic relationship verbs such as `create`, `drive`, `enable`, `lead to`, and `result in` when a more exact action is available;
+- audit stock phrase families without mechanically banning them;
+- generate internal alternatives for especially generic major sentences;
+- avoid synonym spinning or artificial rare-word substitution;
+- preserve ordinary vocabulary, clarity, and epistemic fidelity.
+
+The goal remains stronger, more specific writing rather than a target score on any detector.
