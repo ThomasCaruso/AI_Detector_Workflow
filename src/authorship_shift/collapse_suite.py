@@ -1,15 +1,13 @@
 """Cross-domain collapse experiment and aggregate report.
 
-Runs the same 5 profiles x 2 samples design over every evaluation domain and
+Runs the same generation-profile design over every evaluation domain and
 aggregates the per-domain collapse statistics into one table and one verdict.
 
 The verdict is the point. A single domain's collapse ratio is a data point; the
-question that decides whether to move to LoRA or fine-tuning is whether the
-ratio stays near 1.0 *across domains*. This module encodes that decision rule
-explicitly rather than leaving it to be eyeballed from five separate reports.
-
-Thresholds are imported from `collapse`, so a per-domain interpretation and the
-aggregate verdict can never disagree about what counts as collapsed.
+question that decides whether to move beyond prompt/profile control is whether
+that intervention produces a practically useful effect across domains. This
+module encodes the per-domain classifications; verdict_guard adds the stricter
+cross-domain action policy used for training decisions.
 """
 
 from __future__ import annotations
@@ -45,6 +43,7 @@ VERDICT_CONTROLLABLE = "controllable"
 VERDICT_DOMAIN_DEPENDENT = "domain_dependent"
 VERDICT_DAMAGING = "controllable_but_damaging"
 VERDICT_GATE_BLOCKED = "gate_blocked"
+VERDICT_PROMPT_CEILING = "prompt_profile_ceiling"
 
 
 def _pretty(genre: str | None, case_id: str) -> str:
@@ -203,7 +202,12 @@ def analyze_domain(
 
 
 def decide(domains: Sequence[DomainOutcome]) -> SuiteVerdict:
-    """Turn per-domain outcomes into the decision this experiment exists to make."""
+    """Turn per-domain outcomes into the generic aggregate interpretation.
+
+    This function summarizes measured domains. The stricter final action policy
+    lives in verdict_guard, which can require complete/powered cross-domain
+    evidence before recommending a new training intervention.
+    """
 
     measured = [row for row in domains if row.measured]
     rationale: list[str] = []
@@ -217,7 +221,7 @@ def decide(domains: Sequence[DomainOutcome]) -> SuiteVerdict:
                 "within-profile dispersion.",
                 "Each domain needs at least two samples for at least one profile.",
             ],
-            next_step="Complete the 5 x 5 x 2 generation matrix, then re-run the report.",
+            next_step="Complete the cross-domain generation matrix, then re-run the report.",
         )
 
     separated = [row for row in measured if row.classification == SEPARATED]
@@ -262,10 +266,6 @@ def decide(domains: Sequence[DomainOutcome]) -> SuiteVerdict:
             + "."
         )
 
-    # A collapse ratio computed over candidates that lost content or missed the
-    # target length says nothing about controllability. Recommending a training
-    # programme off such a batch would be the worst outcome this suite can
-    # produce, so no verdict is issued until something passes the gate.
     if not any(row.gate_pass for row in measured):
         return SuiteVerdict(
             key=VERDICT_GATE_BLOCKED,
@@ -285,8 +285,6 @@ def decide(domains: Sequence[DomainOutcome]) -> SuiteVerdict:
             ),
         )
 
-    # A profile effect bought at the cost of fidelity or writing quality is not a
-    # win, so this outranks the ordinary separated verdict.
     if separated and all(not row.gate_pass for row in separated):
         return SuiteVerdict(
             key=VERDICT_DAMAGING,
@@ -321,13 +319,13 @@ def decide(domains: Sequence[DomainOutcome]) -> SuiteVerdict:
             key=VERDICT_WEAK,
             headline=(
                 "Weak across domains: dispersion leans toward the profiles but no "
-                "domain reaches significance."
+                "domain reaches the practical separation threshold."
             ),
             rationale=rationale,
             next_step=(
-                "Increase samples per profile before deciding. If the ratio stays "
-                "below the separation threshold with a powered design, treat this as "
-                "collapse and move to LoRA or fine-tuning."
+                "If the design is still minimally replicated, increase samples per "
+                "profile before deciding. A complete, powered cross-domain study is "
+                "evaluated by the final verdict guard."
             ),
         )
 
@@ -390,13 +388,11 @@ def run_suite(
 
     design_note = ""
     if measured and all(row.design_has_resolution for row in measured):
-        design_note = (
-            "All measured domains have adequate permutation resolution."
-        )
+        design_note = "All measured domains have adequate permutation resolution."
     elif measured:
         design_note = (
             "Some measured domains are underpowered; their p-values are floor-bound. "
-            "Five profiles at two samples is the minimum adequately powered design."
+            "Use enough independent replicates for the intended decision threshold."
         )
 
     return SuiteReport(
@@ -413,16 +409,11 @@ def _num(value: float | None, digits: int = 3) -> str:
 
 
 def build_markdown(report: SuiteReport) -> str:
-    # Derive the design line from the data; hardcoding it mislabels any run that
-    # does not use the original 5x2 shape.
-    measured = [row for row in report.domains if row.expected_count]
-    per_domain = measured[0].expected_count if measured else 0
-    samples = per_domain // 5 if per_domain else 0
     lines = [
         "# Cross-domain collapse experiment",
         "",
-        f"Design: {len(report.domains)} domains x 5 generation profiles x {samples} "
-        f"independent samples per profile = {len(report.domains) * per_domain} generations.",
+        "The report compares within-profile and between-profile stylistic dispersion "
+        "across the prepared domain batches.",
         "",
         "## Verdict",
         "",
