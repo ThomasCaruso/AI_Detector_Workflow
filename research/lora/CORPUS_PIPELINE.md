@@ -23,6 +23,27 @@ source IDs only when they represent independently identifiable documents/section
 with clear provenance; do not split one document merely to manipulate train/dev/
 holdout assignment.
 
+The initial adapter experiment has five target genres:
+
+```text
+business_analysis
+technical_explanation
+science_summary
+professional_writing
+analytical_argument
+```
+
+**Freeze the real source registry before annotation starts.** The decision-grade
+splitter ranks approved source documents within each genre using the frozen split
+seed and the complete approved registry. Adding or removing an approved source is
+therefore a new split contract, not an incremental edit to an existing annotation
+set.
+
+Decision-grade preparation requires at least **three approved source documents per
+target genre** so every genre can have a source-level train, dev, and holdout cell.
+For the intended 30-50 document bootstrap, aim for roughly 6-10 independently
+sourced documents per genre rather than relying on the three-document minimum.
+
 See `SOURCE_POOLS.md` for bootstrap source pools and their rights-policy links.
 
 ## 2. Create raw excerpt JSONL locally
@@ -44,7 +65,7 @@ Rules:
 - exclude tables, captions, boilerplate, references, and navigation text;
 - prefer sustained prose of roughly 80-500 words for the first corpus.
 
-## 3. Freeze source-level splits and prepare annotation packets
+## 3. Freeze genre-stratified source splits and prepare annotation packets
 
 ```bash
 python scripts/prepare_lora_annotations.py \
@@ -53,9 +74,31 @@ python scripts/prepare_lora_annotations.py \
   research/lora/annotations
 ```
 
-Split assignment is a deterministic hash of the frozen split seed and `source_id`.
-Every excerpt from the same document therefore lands in the same split before any
-semantic annotation or model evaluation occurs.
+The default split strategy is `genre-stratified-hash-v1`:
+
+1. consider approved source documents only;
+2. group them by target genre;
+3. hash-rank `source_id` values within each genre using the frozen split seed;
+4. reserve at least one source document for dev and one for holdout in every
+   target genre;
+5. assign the rest to train.
+
+With six source documents in a genre, the default 80/10/10 target becomes 4 train
+/ 1 dev / 1 holdout. With ten documents it becomes 8 / 1 / 1. The exact minority
+counts are deterministic and rounded from the configured fractions while always
+reserving at least one training source.
+
+Every excerpt from one source document receives that document's split. The
+preparation report prints both the source-level genre x split matrix and a
+`registry_split_sha256` fingerprint for the exact frozen assignment.
+
+A tiny smoke fixture can bypass the coverage requirement only explicitly:
+
+```bash
+python scripts/prepare_lora_annotations.py ... --allow-incomplete-genre-coverage
+```
+
+That mode is diagnostic only and must not be used for a training decision.
 
 The generated packets contain the authentic target prose but deliberately leave
 these fields empty:
@@ -164,9 +207,14 @@ python scripts/build_lora_dataset.py \
   --require-trainable
 ```
 
-The second form refuses to produce a trainable corpus unless train, dev, and
-holdout all contain at least one ready example. The QLoRA runner independently
-rechecks the same requirement at `--execute` time.
+The second form refuses to produce a trainable corpus unless:
+
+- train, dev, and holdout are globally non-empty; **and**
+- every one of the five target genres has at least one ready example in train,
+  dev, and holdout.
+
+The QLoRA runner independently checks the same genre x split requirement before
+heavy imports, model download, or GPU initialization when `--execute` is supplied.
 
 ## 6. Audit the corpus
 
@@ -179,15 +227,26 @@ python scripts/audit_lora_dataset.py \
 The audit reports:
 
 - examples and words by genre;
+- examples by global split;
+- **examples by genre x split**;
+- **unique source documents by genre x split**;
+- every missing target genre x split cell;
 - examples and words by provenance kind;
 - examples and words by source document;
 - largest source-document share;
 - near-duplicate target prose using word 5-gram Jaccard similarity;
 - near-duplicates that cross train/dev/holdout boundaries.
 
-Defaults warn when one source exceeds 15% of examples or words and when a genre
-has fewer than five examples. Those are corpus-design warnings rather than model
-hyperparameters; tune them only with an explicit corpus rationale.
+The audit exits non-zero when the decision-grade genre x split matrix is
+incomplete. A diagnostic-only escape hatch exists:
+
+```bash
+python scripts/audit_lora_dataset.py ... --allow-incomplete-genre-coverage
+```
+
+Defaults also warn when one source exceeds 15% of examples or words and when a
+genre has fewer than five examples. Those are corpus-design warnings rather than
+model hyperparameters; tune them only with an explicit corpus rationale.
 
 ## 7. Validate without training
 
@@ -196,8 +255,10 @@ python scripts/validate_lora_dataset.py research/lora/datasets/lora_v1.jsonl
 python research/lora/train_qlora.py research/lora/datasets/lora_v1.jsonl
 ```
 
-The training runner remains dry-run by default. No model download, Torch import,
-or GPU use occurs without `--execute`.
+The dry run reports genre x split coverage but remains diagnostic: it does not
+require a complete corpus and still performs no model download or heavy import.
+`--execute` is stricter and refuses training unless the full five-genre split
+contract is satisfied.
 
 ## Initial corpus target
 
@@ -208,14 +269,15 @@ auditable corpus that can exercise the entire pipeline:
 ~30-50 source documents
 ~150-300 excerpts
 5 target genres
+~6-10 source documents per genre
 multiple provenance/source pools
-non-empty train/dev/holdout by source document
+train/dev/holdout represented inside every genre
 ```
 
 This is enough for a first *pipeline and overfit-risk experiment*, not enough to
 claim a production-quality writing adapter. The first training question is simply
 whether the adapter moves held-out style behavior while the fidelity gates remain
-clean.
+clean **in every genre**, rather than only in a globally pooled holdout.
 
 ## What stays out of Git
 
