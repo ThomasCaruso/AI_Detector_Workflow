@@ -12,6 +12,34 @@ if str(SRC) not in sys.path:
 
 from authorship_shift.batch_gate import assess_batch
 from authorship_shift.candidate_lab import analyze_candidates
+from authorship_shift.collapse import assess_collapse
+
+
+def _manifest_candidates(manifest: dict) -> list[dict]:
+    """Return candidate entries from a v2 manifest, or adapt a v1 manifest.
+
+    The v1 layout had exactly one candidate per profile and keyed it by profile
+    name, so batches prepared before replicate support still analyze correctly.
+    """
+
+    entries = manifest.get("candidates")
+    if entries:
+        return list(entries)
+
+    adapted = []
+    for index, profile in enumerate(manifest.get("profiles", []), start=1):
+        adapted.append(
+            {
+                "candidate_id": profile["name"],
+                "profile": profile["name"],
+                "profile_index": profile.get("index", index),
+                "sample_index": 1,
+                "prompt_file": profile.get("prompt_file"),
+                "expected_output_file": profile["expected_output_file"],
+                "requested_controls": profile.get("requested_controls", {}),
+            }
+        )
+    return adapted
 
 
 def main() -> int:
@@ -31,9 +59,10 @@ def main() -> int:
     source = manifest["source"]
 
     candidates: list[tuple[str, str]] = []
+    labeled: list[tuple[str, str, str]] = []
     missing: list[str] = []
-    for profile in manifest.get("profiles", []):
-        relative = profile["expected_output_file"]
+    for entry in _manifest_candidates(manifest):
+        relative = entry["expected_output_file"]
         path = args.batch / relative
         if not path.exists():
             missing.append(relative)
@@ -42,7 +71,15 @@ def main() -> int:
         if not text:
             missing.append(relative)
             continue
-        candidates.append((profile["name"], text))
+        candidate_id = entry["candidate_id"]
+        candidates.append((candidate_id, text))
+        labeled.append((candidate_id, entry["profile"], text))
+
+    duplicate_ids = {cid for cid, _ in candidates if sum(1 for other, _ in candidates if other == cid) > 1}
+    if duplicate_ids:
+        raise RuntimeError(
+            f"manifest contains duplicate candidate ids: {sorted(duplicate_ids)}"
+        )
 
     if missing and not args.allow_partial:
         joined = "\n- ".join(missing)
@@ -57,11 +94,14 @@ def main() -> int:
         analyses,
         target_words=manifest.get("target_words"),
     )
+    collapse = assess_collapse(labeled)
     payload = {
         "case_id": manifest.get("case_id"),
         "candidate_count": len(candidates),
+        "samples_per_profile": manifest.get("samples_per_profile", 1),
         "missing_outputs": missing,
         "gate": gate.to_dict(),
+        "collapse": collapse.to_dict(),
         "analyses": [row.to_dict() for row in analyses],
     }
     output_path = args.batch / "analysis.json"
@@ -82,10 +122,25 @@ def main() -> int:
     if missing:
         print(f"missing_outputs={len(missing)}")
     print(f"batch_gate={'PASS' if gate.pass_gate else 'FAIL'}")
+    print(f"fidelity_evidence={gate.fidelity_evidence}")
     for failure in gate.hard_failures:
         print(f"FAIL: {failure}")
     for warning in gate.warnings:
         print(f"WARN: {warning}")
+
+    print("--- collapse ---")
+    for separation in collapse.separations:
+        p_text = "n/a" if separation.p_value is None else f"{separation.p_value:.4f}"
+        print(
+            f"{separation.distance_mode}: "
+            f"within={separation.within_profile_mean:.4f} "
+            f"between={separation.between_profile_mean:.4f} "
+            f"ratio={separation.separation_ratio:.3f} p={p_text}"
+        )
+        print(f"  {separation.interpretation}")
+    for note in collapse.notes:
+        print(f"NOTE: {note}")
+
     print(output_path)
     return 0
 
