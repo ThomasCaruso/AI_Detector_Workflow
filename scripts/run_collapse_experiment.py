@@ -1,6 +1,12 @@
 """Orchestrate the cross-domain collapse experiment.
 
-    5 domains x 5 generation profiles x 2 independent samples = 50 generations
+Decision-grade default:
+
+    5 domains x 5 generation profiles x 4 independent samples = 100 generations
+
+Two samples per profile remain enough to make within-profile dispersion defined,
+but direct replication showed 5x2 can give unstable decision-grade ratios. The
+central protocol therefore defaults to four samples per profile.
 
 Three subcommands:
 
@@ -35,6 +41,7 @@ from authorship_shift.verdict_guard import apply_final_verdict_guard
 
 DEFAULT_CASES = ROOT / "evals" / "engine_v2_seed_cases.json"
 DEFAULT_ROOT = ROOT / "experiments" / "collapse_suite"
+DECISION_GRADE_SAMPLES_PER_PROFILE = 4
 
 
 def _batch_dirs(root: Path, cases: Path | None = None) -> list[Path]:
@@ -48,8 +55,6 @@ def _batch_dirs(root: Path, cases: Path | None = None) -> list[Path]:
             f"no prepared batches under {root}. Run the 'prepare' subcommand first."
         )
 
-    # Report domains in seed-case order rather than directory-alphabetical order,
-    # so the table reads the same way every run and matches the corpus.
     order: dict[str, int] = {}
     if cases and cases.exists():
         order = {
@@ -89,10 +94,15 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         f"domains={len(cases)} profiles=5 samples_per_profile={args.samples_per_profile} "
         f"total_generations={total}"
     )
+    if args.samples_per_profile < DECISION_GRADE_SAMPLES_PER_PROFILE:
+        print(
+            "warning=replicates are sufficient to compute within-profile dispersion, "
+            "but below the 4-sample decision-grade protocol established by replication"
+        )
     print(
-        "Run every prompt as a separate generation. Two prompts for the same profile "
-        "are identical by design; the difference between their outputs is the "
-        "within-profile term."
+        "Run every prompt as a separate generation. Replicate prompts for the same "
+        "profile are identical by design; the differences between their outputs form "
+        "the within-profile term."
     )
     return 0
 
@@ -121,10 +131,6 @@ def cmd_report(args: argparse.Namespace) -> int:
         seed=args.seed,
         select=args.select,
     )
-    # Partial reports remain useful for diagnostics, but only a complete suite
-    # with enough checked, gate-passing domains may issue a training-direction
-    # verdict. This prevents a one-domain pilot from accidentally recommending
-    # LoRA while four domains are still unmeasured.
     report = apply_final_verdict_guard(report)
 
     markdown = report.to_markdown()
@@ -163,7 +169,12 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     prepare = sub.add_parser("prepare", help="Write every domain's prompt set")
-    prepare.add_argument("--samples-per-profile", type=int, default=2)
+    prepare.add_argument(
+        "--samples-per-profile",
+        type=int,
+        default=DECISION_GRADE_SAMPLES_PER_PROFILE,
+        help="Independent samples per profile; 4 is the decision-grade default",
+    )
     prepare.add_argument("--base-seed", type=int, default=100)
     prepare.set_defaults(func=cmd_prepare)
 
