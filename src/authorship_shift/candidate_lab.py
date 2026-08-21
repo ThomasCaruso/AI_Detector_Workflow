@@ -37,6 +37,39 @@ GENERIC_SENTENCE_STARTS = {
     "ultimately",
 }
 
+_SMALL_NUMBER_WORDS = {
+    0: "zero",
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+    11: "eleven",
+    12: "twelve",
+    13: "thirteen",
+    14: "fourteen",
+    15: "fifteen",
+    16: "sixteen",
+    17: "seventeen",
+    18: "eighteen",
+    19: "nineteen",
+}
+_TENS_WORDS = {
+    20: "twenty",
+    30: "thirty",
+    40: "forty",
+    50: "fifty",
+    60: "sixty",
+    70: "seventy",
+    80: "eighty",
+    90: "ninety",
+}
+
 
 def _ngrams(tokens: Sequence[str], n: int) -> set[tuple[str, ...]]:
     if len(tokens) < n:
@@ -101,20 +134,44 @@ def generic_sentence_start_ratio(text: str) -> float:
     return hits / len(sents)
 
 
+def _phrase_has_case_variant(source: str, phrase: str) -> bool:
+    """Return True when ``phrase`` also appears with ordinary lowercase casing.
+
+    Sentence-initial common-noun phrases can look like proper names to a purely
+    capitalization-based extractor. If the same words occur elsewhere in the
+    source with different casing, the source itself supplies evidence that the
+    phrase is ordinary terminology rather than an immutable name. This keeps
+    real names such as ``Northstar Mobility`` while dropping phrases such as
+    ``Normalized EBITDA`` when ``normalized EBITDA`` also appears in the source.
+    """
+
+    flexible = re.escape(phrase).replace(r"\ ", r"\s+")
+    pattern = re.compile(
+        r"(?<![0-9A-Za-z_])" + flexible + r"(?![0-9A-Za-z_])",
+        re.IGNORECASE,
+    )
+    canonical = " ".join(phrase.split())
+    return any(" ".join(match.group(0).split()) != canonical for match in pattern.finditer(source))
+
+
 def extract_immutables(source: str) -> list[str]:
     """Extract conservative surface forms worth checking exactly.
 
     This is intentionally a precheck, not a semantic-fidelity judge. To avoid
     false positives from ordinary sentence-initial capitalization, it tracks
-    numbers, multiword capitalized names, and all-caps identifiers. Single-word
-    title-case names should come from the semantic/content lock in a full run.
+    numbers, multiword capitalized names, and all-caps identifiers. A multiword
+    capitalized phrase is excluded when the same words appear elsewhere in the
+    source with different casing, which is evidence that the phrase is ordinary
+    terminology rather than a name. Single-word title-case names should come
+    from the semantic/content lock in a full run.
     """
 
     items = set(NUMBER_RE.findall(source))
     for phrase in CAPITALIZED_PHRASE_RE.findall(source):
         parts = phrase.split()
         if len(parts) >= 2:
-            items.add(phrase)
+            if all(part.isupper() for part in parts) or not _phrase_has_case_variant(source, phrase):
+                items.add(phrase)
         elif phrase.isupper() and len(phrase) > 1:
             items.add(phrase)
     return sorted(items, key=lambda value: (value.lower(), value))
@@ -140,8 +197,41 @@ def _immutable_pattern(item: str) -> re.Pattern[str]:
     return re.compile(left + re.escape(item) + right, re.IGNORECASE)
 
 
+def _integer_word_pattern(item: str) -> re.Pattern[str] | None:
+    """Return a conservative word-form matcher for a bare integer immutable.
+
+    Only unsigned bare integers from 0 through 99 are normalized. Currency,
+    percentages, decimals, multipliers, dates with punctuation, and units remain
+    exact-surface checks because spelling those out can change surrounding
+    semantics. Compound values accept either ``twenty-one`` or ``twenty one``.
+    """
+
+    if not re.fullmatch(r"\d{1,2}", item):
+        return None
+    value = int(item)
+    if value in _SMALL_NUMBER_WORDS:
+        body = re.escape(_SMALL_NUMBER_WORDS[value])
+    elif value in _TENS_WORDS:
+        body = re.escape(_TENS_WORDS[value])
+    elif 20 < value < 100:
+        tens = (value // 10) * 10
+        ones = value % 10
+        body = re.escape(_TENS_WORDS[tens]) + r"(?:-|\s+)" + re.escape(_SMALL_NUMBER_WORDS[ones])
+    else:
+        return None
+    # Treat hyphenated compounds as a single lexical unit so ``nine`` does not
+    # accidentally satisfy an immutable inside ``nine-year`` or similar text.
+    return re.compile(
+        r"(?<![0-9A-Za-z_-])" + body + r"(?![0-9A-Za-z_-])",
+        re.IGNORECASE,
+    )
+
+
 def immutable_matches(candidate: str, item: str) -> bool:
-    return _immutable_pattern(item).search(candidate) is not None
+    if _immutable_pattern(item).search(candidate) is not None:
+        return True
+    word_pattern = _integer_word_pattern(item)
+    return word_pattern is not None and word_pattern.search(candidate) is not None
 
 
 def immutable_coverage(source: str, candidate: str) -> tuple[float, list[str]]:
