@@ -8,18 +8,24 @@ inform.
 
 from __future__ import annotations
 
+from statistics import mean
+
+from .collapse import RATIO_WEAK
 from .collapse_suite import (
     VERDICT_GATE_BLOCKED,
     VERDICT_INSUFFICIENT,
+    VERDICT_PROMPT_CEILING,
     SuiteReport,
     SuiteVerdict,
     decide,
 )
 
-# Five seed domains are used by the central experiment. Requiring three checked,
-# gate-passing domains gives the final verdict a cross-domain majority while
-# still allowing one or two domains to fail for reasons that need separate work.
+# Three checked, gate-passing domains remain the minimum for an ordinary
+# cross-domain verdict. The stronger practical-ceiling decision below requires
+# four trusted domains and the larger 5x4-style replication depth.
 MIN_TRUSTED_DOMAINS = 3
+MIN_CEILING_DOMAINS = 4
+MIN_CANDIDATES_PER_DOMAIN_FOR_CEILING = 20
 
 
 def trusted_domains(report: SuiteReport):
@@ -38,6 +44,69 @@ def trusted_domains(report: SuiteReport):
         and row.gate_pass
         and row.fidelity_evidence == "checked"
     ]
+
+
+def _prompt_ceiling_is_earned(trusted) -> bool:
+    """Return True when more prompt-only sampling is no longer the useful next test.
+
+    The practical threshold is intentionally magnitude-first. A tiny effect can
+    be statistically significant with enough samples; that does not make it
+    useful. To call the prompt/profile ceiling reached, require:
+
+    - at least four independent trusted domains;
+    - at least twenty candidates per domain (the 5 profiles x 4 samples design);
+    - adequate permutation resolution in every voting domain; and
+    - every voting domain below the predeclared useful-separation ratio of 1.25.
+
+    Any trusted domain at or above 1.25 blocks the ceiling decision even if its
+    p-value is not significant, because a practically large but uncertain effect
+    deserves replication rather than immediate escalation to model training.
+    """
+
+    if len(trusted) < MIN_CEILING_DOMAINS:
+        return False
+    for row in trusted:
+        if row.candidate_count < MIN_CANDIDATES_PER_DOMAIN_FOR_CEILING:
+            return False
+        if not row.design_has_resolution:
+            return False
+        if row.collapse_ratio is None or row.collapse_ratio >= RATIO_WEAK:
+            return False
+    return True
+
+
+def _ceiling_verdict(trusted, total_domains: int) -> SuiteVerdict:
+    ratios = [float(row.collapse_ratio) for row in trusted if row.collapse_ratio is not None]
+    names = ", ".join(row.display_name for row in trusted)
+    return SuiteVerdict(
+        key=VERDICT_PROMPT_CEILING,
+        headline=(
+            "Prompt/profile control has reached a measured practical ceiling across "
+            "the trusted domains."
+        ),
+        rationale=[
+            (
+                f"{len(trusted)}/{total_domains} domains are complete, gate-passing, "
+                "and backed by checked fidelity evidence."
+            ),
+            (
+                f"Trusted collapse ratios span {min(ratios):.3f}–{max(ratios):.3f} "
+                f"with mean {mean(ratios):.3f}; none reaches the predeclared "
+                f"useful-separation threshold of {RATIO_WEAK:.2f}."
+            ),
+            (
+                "Each voting domain uses at least twenty candidates and adequate "
+                "permutation resolution, so additional prompt-only samples would "
+                "mainly estimate the same weak effect more precisely."
+            ),
+            "Trusted domains: " + names + ".",
+        ],
+        next_step=(
+            "Freeze the prompt/profile experiment and proceed to the open-weight "
+            "adapter research phase. Compare a frozen base model against a LoRA/QLoRA "
+            "adapter under the same fidelity and held-out evaluation contract."
+        ),
+    )
 
 
 def apply_final_verdict_guard(
@@ -92,7 +161,11 @@ def apply_final_verdict_guard(
         )
         return report
 
-    # Recompute the action verdict using only evidence that survived the guard.
+    if _prompt_ceiling_is_earned(trusted):
+        report.verdict = _ceiling_verdict(trusted, len(report.domains))
+        return report
+
+    # Recompute the ordinary action verdict using only evidence that survived the guard.
     verdict = decide(trusted)
     excluded = len(report.domains) - len(trusted)
     verdict.rationale.append(
