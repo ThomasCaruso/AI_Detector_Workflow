@@ -100,7 +100,18 @@ def test_eval_cases_record_progress_and_regression():
 
 
 def test_primary_readme_does_not_require_local_inference():
+    """The portable Skill must stay usable without local inference.
+
+    The v0.8 two-layer rewrite changed the wording that previously carried this
+    guarantee, so the assertions track the current README. The requirement is
+    unchanged: the Skill is the user-facing interface, and the engine is
+    research infrastructure a normal user never has to install.
+    """
+
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "Primary deliverable: portable Agent Skill" in readme
-    assert "does not require a local model" in readme
-    assert "optional research infrastructure" in readme
+    assert "The Skill is the user-facing interface." in readme
+    assert (
+        "A normal end user does not need to download a local model merely to use the portable Skill."
+        in readme
+    )
+    assert "The engine is the research and control layer." in readme

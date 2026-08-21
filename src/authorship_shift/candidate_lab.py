@@ -13,8 +13,13 @@ NUMBER_RE = re.compile(
     r"(?<!\w)(?:[$€£])?\d+(?:,\d{3})*(?:\.\d+)?%?(?:x|ms|s|m|h|kg|g|km|mi)?(?!\w)",
     re.IGNORECASE,
 )
+# A capitalized token may contain an internal dot ("U.S.A"-style) but must not
+# end with one. Allowing a trailing dot lets a phrase run across a sentence
+# boundary and produce impossible immutables such as "EBITDA. Normalized EBITDA",
+# which no faithful rewrite can ever contain.
+_CAP_TOKEN = r"[A-Z][A-Za-z0-9&-]+(?:\.[A-Z][A-Za-z0-9&-]+)*"
 CAPITALIZED_PHRASE_RE = re.compile(
-    r"\b(?:[A-Z][A-Za-z0-9&.-]+(?:\s+[A-Z][A-Za-z0-9&.-]+){0,3})\b"
+    rf"\b(?:{_CAP_TOKEN}(?:\s+{_CAP_TOKEN}){{0,3}})\b"
 )
 
 GENERIC_SENTENCE_STARTS = {
@@ -115,11 +120,42 @@ def extract_immutables(source: str) -> list[str]:
     return sorted(items, key=lambda value: (value.lower(), value))
 
 
+def _immutable_pattern(item: str) -> re.Pattern[str]:
+    """Build a boundary-aware matcher for one immutable detail.
+
+    A plain substring test is wrong in both directions. It lets a bare ``9``
+    match inside ``1,900``, ``2029``, or ``9.1x``, and it rejects a candidate
+    that writes ``normalized EBITDA`` mid-sentence when the source happened to
+    capitalize the phrase at a sentence start.
+    """
+
+    left = r"(?<![0-9A-Za-z_])"
+    right = r"(?![0-9A-Za-z_])"
+    if item[0].isdigit():
+        # Do not match the tail of a longer number: "9" inside "1,900".
+        left += r"(?<![.,$€£])"
+    if item[-1].isdigit():
+        # Do not match the head of a longer number: "2.0" inside "2.05".
+        right += r"(?![.,]\d)"
+    return re.compile(left + re.escape(item) + right, re.IGNORECASE)
+
+
+def immutable_matches(candidate: str, item: str) -> bool:
+    return _immutable_pattern(item).search(candidate) is not None
+
+
 def immutable_coverage(source: str, candidate: str) -> tuple[float, list[str]]:
+    """Return literal-detail coverage and the details that went missing.
+
+    Coverage of ``1.0`` with an empty item list means *nothing was checkable*,
+    not *fidelity was verified*. Callers that need to tell those apart should
+    use :func:`extract_immutables` or read ``CandidateAnalysis.immutable_count``.
+    """
+
     items = extract_immutables(source)
     if not items:
         return 1.0, []
-    missing = [item for item in items if item not in candidate]
+    missing = [item for item in items if not immutable_matches(candidate, item)]
     return (len(items) - len(missing)) / len(items), missing
 
 
@@ -139,7 +175,10 @@ class CandidateAnalysis:
     structural_distance_from_source: float
     immutable_coverage: float
     missing_immutables: list[str]
+    immutable_count: int = 0
     mean_pairwise_distance: float = 0.0
+    nearest_neighbor_distance: float = 0.0
+    nearest_neighbor_id: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -165,6 +204,7 @@ def analyze_candidate(source: str, candidate_id: str, text: str) -> CandidateAna
         structural_distance_from_source=structural_distance(source, text),
         immutable_coverage=coverage,
         missing_immutables=missing,
+        immutable_count=len(extract_immutables(source)),
     )
 
 
@@ -174,20 +214,25 @@ def analyze_candidates(
 ) -> list[CandidateAnalysis]:
     candidate_list = [(cid, text) for cid, text in candidates]
     analyses = [analyze_candidate(source, cid, text) for cid, text in candidate_list]
-    text_by_id = dict(candidate_list)
 
-    for analysis in analyses:
-        other_ids = [
-            other.candidate_id
-            for other in analyses
-            if other.candidate_id != analysis.candidate_id
-        ]
-        if other_ids:
-            analysis.mean_pairwise_distance = sum(
-                pair_distance(
-                    text_by_id[analysis.candidate_id],
-                    text_by_id[other_id],
-                )
-                for other_id in other_ids
-            ) / len(other_ids)
+    # Compute each pair once. pair_distance is symmetric but not cheap, and the
+    # previous implementation evaluated every pair twice.
+    count = len(candidate_list)
+    matrix: list[list[float]] = [[0.0] * count for _ in range(count)]
+    for i in range(count):
+        for j in range(i + 1, count):
+            distance = pair_distance(candidate_list[i][1], candidate_list[j][1])
+            matrix[i][j] = distance
+            matrix[j][i] = distance
+
+    for index, analysis in enumerate(analyses):
+        others = [(matrix[index][j], candidate_list[j][0]) for j in range(count) if j != index]
+        if not others:
+            continue
+        analysis.mean_pairwise_distance = sum(d for d, _ in others) / len(others)
+        # The mean hides near-duplicate pairs inside an otherwise spread batch,
+        # so record the closest neighbor explicitly.
+        nearest_distance, nearest_id = min(others, key=lambda pair: pair[0])
+        analysis.nearest_neighbor_distance = nearest_distance
+        analysis.nearest_neighbor_id = nearest_id
     return analyses

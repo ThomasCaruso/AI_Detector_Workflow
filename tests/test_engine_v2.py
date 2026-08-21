@@ -1,6 +1,8 @@
 from authorship_shift.candidate_lab import (
     analyze_candidates,
+    extract_immutables,
     immutable_coverage,
+    immutable_matches,
     opening_repeat_ratio,
     source_ngram_overlap,
 )
@@ -48,6 +50,67 @@ def test_candidate_lab_detects_immutable_loss_and_overlap():
     assert "2025" in bad_missing
 
     assert source_ngram_overlap(source, good) > source_ngram_overlap(source, bad)
+
+
+def test_immutables_do_not_span_sentence_boundaries():
+    """A phrase built across a full stop can never appear in a faithful rewrite."""
+
+    source = (
+        "The buyer paid approximately 9.1x reported EBITDA. "
+        "Normalized EBITDA is estimated at $1.9 million."
+    )
+    items = extract_immutables(source)
+    assert not any("." in item and " " in item for item in items)
+    assert "EBITDA. Normalized EBITDA" not in items
+    assert "EBITDA" in items
+
+
+def test_immutable_matching_respects_number_boundaries():
+    """A bare digit must not match inside a longer number."""
+
+    assert not immutable_matches("revenue reached 1,900 units", "9")
+    assert not immutable_matches("the year 2029 closed", "9")
+    assert not immutable_matches("priced at 9.1x earnings", "9")
+    assert immutable_matches("about 9 percentage points of growth", "9")
+
+    assert not immutable_matches("net debt of 12.05 million", "2.0")
+    assert immutable_matches("net debt of 2.0 million", "2.0")
+
+
+def test_immutable_matching_ignores_sentence_initial_capitalization():
+    """Source-side sentence-initial capitals must not cause false failures."""
+
+    assert immutable_matches("normalized EBITDA is estimated", "Normalized EBITDA")
+    assert immutable_matches("reported ebitda fell", "EBITDA")
+
+
+def test_immutable_coverage_reports_when_nothing_is_checkable():
+    source = "Competition can make delay more costly for firms that hesitate."
+    coverage, missing = immutable_coverage(source, "Rivals punish hesitation.")
+    assert coverage == 1.0
+    assert missing == []
+    assert extract_immutables(source) == []
+
+
+def test_analysis_records_nearest_neighbor():
+    """Near-duplicate pairs must be visible even when the mean looks healthy."""
+
+    twin_a = "Costs rose sharply. Margins fell. Demand slowed after the change."
+    twin_b = "Costs rose sharply. Margins fell. Demand slowed after that change."
+    other = (
+        "A rebate program ended, and the resulting gap showed up first in "
+        "unit economics; buyers noticed later."
+    )
+
+    analyses = analyze_candidates(
+        "Costs and demand changed during the period.",
+        [("a", twin_a), ("b", twin_b), ("c", other)],
+    )
+    by_id = {row.candidate_id: row for row in analyses}
+    assert by_id["a"].nearest_neighbor_id == "b"
+    assert by_id["b"].nearest_neighbor_id == "a"
+    assert by_id["a"].nearest_neighbor_distance < by_id["a"].mean_pairwise_distance
+    assert by_id["c"].nearest_neighbor_id in {"a", "b"}
 
 
 def test_candidate_lab_measures_opening_repetition_and_pair_distance():

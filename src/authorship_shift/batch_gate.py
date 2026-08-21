@@ -15,6 +15,12 @@ class BatchGateConfig:
     warn_opening_repeat_ratio: float = 0.30
     warn_transition_start_ratio: float = 0.25
     warn_source_trigram_overlap: float = 0.45
+    # A pair closer than this is treated as a near-duplicate. Mean pairwise
+    # distance cannot see two collapsed candidates inside a spread batch.
+    min_nearest_neighbor_distance: float = 0.05
+    # Report cases where the literal-detail precheck had nothing to check, so a
+    # vacuous coverage of 1.0 is never read as verified fidelity.
+    warn_on_vacuous_immutables: bool = True
 
 
 @dataclass
@@ -25,6 +31,8 @@ class BatchGateReport:
     candidate_failures: dict[str, list[str]] = field(default_factory=dict)
     candidate_warnings: dict[str, list[str]] = field(default_factory=dict)
     mean_pairwise_distance: float = 0.0
+    min_nearest_neighbor_distance: float = 0.0
+    fidelity_evidence: str = "none"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -63,6 +71,41 @@ def assess_batch(
         hard_failures.append(
             "candidate batch appears collapsed: "
             f"mean_pairwise_distance={mean_pairwise:.3f} < {cfg.min_mean_pairwise_distance:.3f}"
+        )
+
+    neighbor_distances = [
+        row.nearest_neighbor_distance for row in analyses if row.nearest_neighbor_id is not None
+    ]
+    min_neighbor = min(neighbor_distances) if neighbor_distances else 0.0
+    if neighbor_distances and min_neighbor < cfg.min_nearest_neighbor_distance:
+        duplicates = sorted(
+            f"{row.candidate_id}~{row.nearest_neighbor_id}"
+            for row in analyses
+            if row.nearest_neighbor_id is not None
+            and row.nearest_neighbor_distance < cfg.min_nearest_neighbor_distance
+        )
+        hard_failures.append(
+            "near-duplicate candidates: "
+            f"min_nearest_neighbor_distance={min_neighbor:.3f} < "
+            f"{cfg.min_nearest_neighbor_distance:.3f}; pairs={duplicates}"
+        )
+
+    # A batch whose source exposes no literal details cannot supply fidelity
+    # evidence from this precheck, however high its coverage number looks.
+    checkable = [row.immutable_count for row in analyses]
+    if not analyses:
+        fidelity_evidence = "none"
+    elif all(count == 0 for count in checkable):
+        fidelity_evidence = "vacuous"
+    elif any(count == 0 for count in checkable):
+        fidelity_evidence = "partial"
+    else:
+        fidelity_evidence = "checked"
+
+    if cfg.warn_on_vacuous_immutables and fidelity_evidence in {"vacuous", "partial"}:
+        warnings.append(
+            f"immutable-detail precheck is {fidelity_evidence}: "
+            "coverage=1.0 reflects nothing to check, not verified fidelity"
         )
 
     for row in analyses:
@@ -118,4 +161,6 @@ def assess_batch(
         candidate_failures=candidate_failures,
         candidate_warnings=candidate_warnings,
         mean_pairwise_distance=mean_pairwise,
+        min_nearest_neighbor_distance=min_neighbor,
+        fidelity_evidence=fidelity_evidence,
     )

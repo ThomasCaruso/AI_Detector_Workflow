@@ -17,3 +17,8 @@ authorship-shift = "authorship_shift.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+# Let a fresh checkout run the suite without an editable install first.
+pythonpath = ["src"]
+testpaths = ["tests"]
