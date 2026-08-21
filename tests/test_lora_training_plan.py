@@ -36,7 +36,7 @@ def _example(
                 "underlying operating improvement because part of the gain came from a "
                 "temporary rebate. The distinction matters when judging whether the "
                 "reported 27% growth rate is likely to describe the business after that "
-                "program expires."
+                f"program expires. Fixture {example_id} keeps this target distinct."
             ),
             "provenance": {"kind": "user_owned", "source_id": source_id},
         }
