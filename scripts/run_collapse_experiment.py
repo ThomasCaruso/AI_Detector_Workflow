@@ -31,6 +31,7 @@ from authorship_shift.manual_batch import (
     load_batch,
     prepare_batch,
 )
+from authorship_shift.verdict_guard import apply_final_verdict_guard
 
 DEFAULT_CASES = ROOT / "evals" / "engine_v2_seed_cases.json"
 DEFAULT_ROOT = ROOT / "experiments" / "collapse_suite"
@@ -120,6 +121,11 @@ def cmd_report(args: argparse.Namespace) -> int:
         seed=args.seed,
         select=args.select,
     )
+    # Partial reports remain useful for diagnostics, but only a complete suite
+    # with enough checked, gate-passing domains may issue a training-direction
+    # verdict. This prevents a one-domain pilot from accidentally recommending
+    # LoRA while four domains are still unmeasured.
+    report = apply_final_verdict_guard(report)
 
     markdown = report.to_markdown()
     print(markdown)
