@@ -63,13 +63,24 @@ def parse_source_snapshot(payload: Any, *, source_id: str) -> SourceSnapshot:
     )
 
 
+def _empty_snapshot_placeholder(payload: Any) -> bool:
+    if payload is None:
+        return True
+    if not isinstance(payload, dict):
+        return False
+    return not any(
+        str(payload.get(field) or "").strip()
+        for field in ("retrieved_at", "sha256", "artifact_kind", "revision_label")
+    )
+
+
 def load_registry_snapshots(path: str | Path) -> tuple[dict[str, SourceSnapshot], list[str]]:
     """Validate exact-artifact snapshots for every approved source.
 
     Rights and artifact identity are separate concerns. Public-domain, licensed,
     user-owned, and consented documents can all change over time, so every
     approved source must pin the exact bytes reviewed for excerpting. Candidate
-    and rejected records may remain incomplete.
+    and rejected records may keep the generated all-null snapshot placeholder.
     """
 
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -87,7 +98,7 @@ def load_registry_snapshots(path: str | Path) -> tuple[dict[str, SourceSnapshot]
         status = str(row.get("status", "")).strip()
         snapshot_payload = row.get("source_snapshot")
 
-        if snapshot_payload is None:
+        if _empty_snapshot_placeholder(snapshot_payload):
             if status == "approved":
                 errors.append(
                     f"{source_id}: approved source requires source_snapshot with retrieval "
