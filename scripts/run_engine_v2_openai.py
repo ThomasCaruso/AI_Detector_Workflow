@@ -12,8 +12,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from authorship_shift.batch_gate import assess_batch
+from authorship_shift.collapse import assess_collapse
 from authorship_shift.engine_v2 import GenerationControls, GenerationProfile, generate_candidate_batch
 from authorship_shift.generation_profiles import default_generation_profiles
+from authorship_shift.rerank import rerank
 from authorship_shift.providers.openai_responses import OpenAIResponsesGenerator
 
 
@@ -112,6 +114,15 @@ def main() -> int:
     )
     analyses = [candidate.analysis for candidate in run.candidates if candidate.analysis]
     gate = assess_batch(analyses, target_words=case.get("target_words"))
+    collapse = assess_collapse(
+        [(c.id, c.profile, c.text) for c in run.candidates]
+    )
+    shortlist = rerank(
+        [(c.id, c.text) for c in run.candidates],
+        analyses,
+        target_words=case.get("target_words"),
+        select=max(1, min(3, len(run.candidates))),
+    )
 
     output = args.output
     if output is None:
@@ -122,14 +133,27 @@ def main() -> int:
     payload["case_id"] = args.case_id
     payload["model"] = args.model
     payload["batch_gate"] = gate.to_dict()
+    payload["collapse"] = collapse.to_dict()
+    payload["rerank"] = shortlist.to_dict()
     output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print(f"batch_gate_pass={gate.pass_gate}")
     print(f"mean_pairwise_distance={gate.mean_pairwise_distance:.3f}")
+    print(f"fidelity_evidence={gate.fidelity_evidence}")
     if gate.hard_failures:
         print("hard_failures:")
         for failure in gate.hard_failures:
             print(f"- {failure}")
+    for separation in collapse.separations:
+        p_text = "n/a" if separation.p_value is None else f"{separation.p_value:.4f}"
+        print(
+            f"collapse[{separation.distance_mode}]: "
+            f"ratio={separation.separation_ratio:.3f} p={p_text} "
+            f"-> {separation.interpretation}"
+        )
+    for note in collapse.notes:
+        print(f"NOTE: {note}")
+    print(f"shortlist={shortlist.selected}")
     print(output)
     return 0 if gate.pass_gate else 2
 

@@ -13,6 +13,7 @@ if str(SRC) not in sys.path:
 from authorship_shift.batch_gate import assess_batch
 from authorship_shift.candidate_lab import analyze_candidates
 from authorship_shift.collapse import assess_collapse
+from authorship_shift.rerank import rerank
 
 
 def _manifest_candidates(manifest: dict) -> list[dict]:
@@ -51,6 +52,12 @@ def main() -> int:
         "--allow-partial",
         action="store_true",
         help="Analyze available outputs even when some expected files are missing",
+    )
+    parser.add_argument(
+        "--select",
+        type=int,
+        default=3,
+        help="How many candidates to shortlist for deeper review",
     )
     args = parser.parse_args()
 
@@ -95,6 +102,12 @@ def main() -> int:
         target_words=manifest.get("target_words"),
     )
     collapse = assess_collapse(labeled)
+    shortlist = rerank(
+        candidates,
+        analyses,
+        target_words=manifest.get("target_words"),
+        select=max(1, min(args.select, len(candidates))),
+    )
     payload = {
         "case_id": manifest.get("case_id"),
         "candidate_count": len(candidates),
@@ -102,6 +115,7 @@ def main() -> int:
         "missing_outputs": missing,
         "gate": gate.to_dict(),
         "collapse": collapse.to_dict(),
+        "rerank": shortlist.to_dict(),
         "analyses": [row.to_dict() for row in analyses],
     }
     output_path = args.batch / "analysis.json"
@@ -139,6 +153,16 @@ def main() -> int:
         )
         print(f"  {separation.interpretation}")
     for note in collapse.notes:
+        print(f"NOTE: {note}")
+
+    print("--- shortlist ---")
+    for row in shortlist.ranked:
+        marker = "*" if row.candidate_id in shortlist.selected else " "
+        status = "" if row.eligible else " REJECTED"
+        print(f"{marker} {row.candidate_id}: defects={row.defect_score:.3f}{status}")
+        for reason in row.rejections:
+            print(f"    reject: {reason}")
+    for note in shortlist.notes:
         print(f"NOTE: {note}")
 
     print(output_path)
