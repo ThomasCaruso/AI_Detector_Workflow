@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "source_id": "example-usgs-document-001",
+      "title": "Replace with exact document title",
+      "genre": "science_summary",
+      "status": "candidate",
+      "provenance_kind": "public_domain",
+      "rights_basis": "Do not mark approved until the exact document and excerpt have been reviewed for third-party material.",
+      "canonical_url": "https://www.usgs.gov/",
+      "author_or_agency": "U.S. Geological Survey",
+      "license": "Public Domain (U.S. Government work)",
+      "document_locator": "Replace with publication number/DOI/page locator",
+      "notes": "Template only; not approved training data."
+    },
+    {
+      "source_id": "example-user-owned-document-001",
+      "title": "Replace with user-owned document title",
+      "genre": "professional_writing",
+      "status": "candidate",
+      "provenance_kind": "user_owned",
+      "rights_basis": "Confirm the user owns the text and has the right to use it for model training.",
+      "canonical_url": null,
+      "author_or_agency": "User",
+      "license": null,
+      "document_locator": "Local document identifier",
+      "notes": "Template only; not approved training data."
+    }
+  ]
+}
