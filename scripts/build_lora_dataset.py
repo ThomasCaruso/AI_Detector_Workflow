@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from authorship_shift.annotation_integrity import verify_frozen_manifest
 from authorship_shift.corpus_pipeline import load_completed_annotations, write_training_jsonl
 from authorship_shift.lora_data import validate_dataset
 
@@ -26,6 +27,11 @@ def main() -> int:
         help="Require non-empty train, dev, and holdout splits before writing.",
     )
     args = parser.parse_args()
+
+    integrity_errors = verify_frozen_manifest(args.annotations_dir)
+    if integrity_errors:
+        print(json.dumps({"frozen_contract_valid": False, "errors": integrity_errors}, indent=2))
+        return 4
 
     examples = load_completed_annotations(args.annotations_dir)
     report = validate_dataset(examples)
