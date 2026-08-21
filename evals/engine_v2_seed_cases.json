@@ -41,9 +41,10 @@
     },
     {
       "id": "professional_email_001",
+      "revision": 2,
       "genre": "professional_writing",
       "target_words": 150,
-      "task": "Draft a concise client email explaining the schedule change, what is known, and the next action. Do not invent an apology, discount, or cause beyond the supplied facts.",
+      "task": "Draft a concise client email body explaining the schedule change, what is known, and the next action. Return only the body text: do not include a subject line, greeting, salutation, signature, or sign-off. Do not invent an apology, discount, or cause beyond the supplied facts.",
       "source": "The Atlas implementation was scheduled for September 14. The data migration vendor now expects its export on September 16. Internal validation requires one full business day after the export arrives. The earliest supported implementation date is therefore September 17. The vendor has not identified a further delay. The project team will confirm the implementation date after validating the export.",
       "required_qualifications": [
         "September 17 is the earliest supported date, not a guaranteed date",
@@ -53,14 +54,16 @@
     },
     {
       "id": "competition_innovation_001",
+      "revision": 2,
       "genre": "analytical_argument",
       "target_words": 300,
-      "task": "Explain why competition can accelerate technological innovation. Cover product improvement, cost reduction, risk taking, faster problem solving, and at least one limitation. Keep the argument analytical and not one-sided.",
-      "source": "Competition can make delay more costly because customers, capital, and market share can move toward a rival. Firms may respond by improving products, lowering production costs, funding uncertain technologies, and attacking technical bottlenecks sooner. Competitive pressure can also create harmful short-term incentives, including rushed releases, duplicated research, secrecy, or underinvestment in basic research. Some long-horizon technologies benefit from cooperation, public research, shared standards, or patient funding.",
+      "task": "Explain why competition can accelerate technological innovation. Cover product improvement, cost reduction, risk taking, faster problem solving, and at least one limitation. Use the supplied hypothetical only as an illustration; do not introduce real companies, products, or outside examples. Keep the argument analytical and not one-sided.",
+      "source": "Competition can make delay more costly because customers, capital, and market share can move toward a rival. Firms may respond by improving products, lowering production costs, funding uncertain technologies, and attacking technical bottlenecks sooner. Competitive pressure can also create harmful short-term incentives, including rushed releases, duplicated research, secrecy, or underinvestment in basic research. Some long-horizon technologies benefit from cooperation, public research, shared standards, or patient funding. For this evaluation only, use this hypothetical illustration: two firms each require 18 months to develop a component before a third entrant appears, and one incumbent then targets a 12-month development cycle. The 18-month and 12-month figures are illustrative constraints, not evidence that competition caused the reduction.",
       "required_qualifications": [
         "competition can accelerate innovation rather than always doing so",
         "short-term competitive pressure can damage quality or long-horizon research",
-        "cooperation and public or patient funding can complement competition"
+        "cooperation and public or patient funding can complement competition",
+        "the 18-month to 12-month development-cycle illustration is hypothetical and not causal evidence"
       ]
     }
   ]
