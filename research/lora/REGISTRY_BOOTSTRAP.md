@@ -54,23 +54,38 @@ For each slot, fill:
 - candidate provenance kind;
 - license/public-domain status where applicable;
 - document locator such as report number, DOI, page range, or file identifier;
-- notes about third-party material or sections to exclude.
+- notes about third-party material, distinct authorial voices, or sections to exclude.
 
 Keep `status: candidate` during this stage.
 
+Before spending annotation effort, inspect the document for **excerpt viability**. The first corpus prefers sustained 80-500 word prose; a document dominated by tables, bullets, captions, or boilerplate may be rights-clean but still be a poor training source. As a working target, look for roughly 3-5 independent usable passages per document.
+
+Rights-clean and style-clean are separate checks. Reproduced agency comment letters, contractor appendices, quotations, or other sections written in a different voice should not be absorbed into the host document's style corpus merely because their rights are clear.
+
 After each meaningful registry change, rerun the candidate preview. A document replacement should normally change the preview fingerprint because the stable document-specific `source_id` changes.
 
-## 4. Review rights at the document level
+## 4. Review rights and freeze the exact artifact
 
 Only change a source to `status: approved` after the exact document has been reviewed. Agency-level policy is evidence, not blanket approval for every paragraph hosted by that agency.
 
-For externally sourced public-domain/licensed documents, approval requires the fields enforced by `corpus_pipeline.py`, including the canonical URL and applicable license/public-domain label.
+Every approved source also requires an exact-artifact snapshot. Download or otherwise freeze the file actually reviewed, then hash it locally:
 
-Quoted third-party passages, contractor-authored sections, figures, tables, photographs, and reproduced material require separate attention. Exclude material whose rights basis is unclear.
+```bash
+python scripts/hash_source_artifact.py \
+  research/lora/local_corpus/sources/example.pdf \
+  --artifact-kind pdf \
+  --revision-label "optional published revision label"
+```
 
-## 5. Freeze the approved split contract
+Copy the resulting `retrieved_at`, `sha256`, `artifact_kind`, and `revision_label` into the registry's `source_snapshot`. This applies to all approved sources, including user-owned and consented material: source ownership does not prevent a local file from changing.
 
-Once all intended documents are reviewed and approved, run the planner **without** candidate preview:
+For externally sourced public-domain/licensed documents, approval still separately requires the canonical URL and applicable license/public-domain label.
+
+Quoted third-party passages, contractor-authored sections, figures, tables, photographs, and reproduced material require separate attention. Exclude material whose rights basis or authorship suitability is unclear.
+
+## 5. Freeze the approved split and source-version contracts
+
+Once all intended documents are reviewed, snapshotted, and approved, run the planner **without** candidate preview:
 
 ```bash
 python scripts/plan_lora_splits.py \
@@ -78,13 +93,18 @@ python scripts/plan_lora_splits.py \
   --json-out research/lora/local_corpus/split_plan.json
 ```
 
-This is the decision-grade plan. It emits `registry_split_sha256` and requires at least three approved source documents in every target genre.
+This is the decision-grade plan. It requires at least three approved source documents in every target genre and emits two independent fingerprints:
 
-Do not start excerpt collection/annotation against a candidate preview. Begin annotation only after the approved registry and its split fingerprint are stable.
+- `registry_split_sha256` — exact document identities and split assignments;
+- `source_snapshot_set_sha256` — exact reviewed artifact versions.
+
+Changing a document version while retaining the same `source_id` changes the source-snapshot fingerprint even if the split assignment remains identical.
+
+Do not start excerpt annotation against a candidate preview. Begin annotation only after the approved registry, split fingerprint, and source snapshot fingerprint are stable.
 
 ## 6. Then collect excerpts
 
-Once the approved split contract is frozen, proceed with `CORPUS_PIPELINE.md`:
+Once the approved contracts are frozen, proceed with `CORPUS_PIPELINE.md`:
 
 ```bash
 python scripts/prepare_lora_annotations.py \
@@ -93,4 +113,4 @@ python scripts/prepare_lora_annotations.py \
   research/lora/annotations
 ```
 
-Annotation preparation recomputes the registry-derived split assignment; it does not trust the preview file.
+Annotation preparation recomputes the registry-derived split assignment, validates every approved source snapshot, copies the source snapshot into packet metadata, and freezes it alongside target/provenance fields.
