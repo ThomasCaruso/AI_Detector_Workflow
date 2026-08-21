@@ -23,6 +23,35 @@ source IDs only when they represent independently identifiable documents/section
 with clear provenance; do not split one document merely to manipulate train/dev/
 holdout assignment.
 
+Rights-clean is not the same as style-clean. A reproduced comment letter,
+contractor-authored appendix, quoted third-party passage, or other distinct authorial
+voice can be legally usable while still contaminating the writing distribution the
+adapter is meant to learn. Exclude those passages unless that distinct voice is
+itself an intentional, separately registered source for the target genre.
+
+Every **approved** source must also pin the exact artifact reviewed for excerpting:
+
+```json
+"source_snapshot": {
+  "retrieved_at": "2026-08-21T23:30:00Z",
+  "sha256": "<64 hex digits>",
+  "artifact_kind": "pdf",
+  "revision_label": "optional exact revision/version label"
+}
+```
+
+This applies to public-domain, licensed, user-owned, and consented sources alike.
+Rights determine whether the text may be used; the snapshot identifies which bytes
+were actually reviewed. Use:
+
+```bash
+python scripts/hash_source_artifact.py path/to/reviewed-file.pdf --artifact-kind pdf
+```
+
+For revised documents, record the exact revision label when one is published. The
+canonical URL can remain stable while the underlying document changes; the SHA-256
+is what freezes the reviewed artifact state.
+
 The initial adapter experiment has five target genres:
 
 ```text
@@ -60,10 +89,18 @@ Rules:
   mechanical whitespace normalization;
 - do not improve, simplify, paraphrase, or clean its style;
 - keep enough surrounding context in `excerpt_locator` to audit the excerpt;
-- exclude quotations written by a third party unless that quoted text has its own
-  independently valid provenance;
-- exclude tables, captions, boilerplate, references, and navigation text;
+- exclude quotations or sections written by a different authorial voice unless
+  that voice is intentionally registered as its own source, even when rights are
+  otherwise clean;
+- exclude tables, captions, boilerplate, references, navigation text, and image
+  descriptions;
 - prefer sustained prose of roughly 80-500 words for the first corpus.
+
+Before committing a source slot, test excerpt viability. A rights-clean document
+that yields only one short usable paragraph may be a poor corpus source even if its
+provenance is excellent. For the first pilot, prefer documents that can supply
+roughly 3-5 independent sustained-prose excerpts without dipping into bullets,
+appendices with different authorship, captions, or repeated boilerplate.
 
 ## 3. Freeze genre-stratified source splits and prepare annotation packets
 
@@ -88,9 +125,15 @@ With six source documents in a genre, the default 80/10/10 target becomes 4 trai
 counts are deterministic and rounded from the configured fractions while always
 reserving at least one training source.
 
-Every excerpt from one source document receives that document's split. The
-preparation report prints both the source-level genre x split matrix and a
-`registry_split_sha256` fingerprint for the exact frozen assignment.
+Every excerpt from one source document receives that document's split. The split
+planner reports two separate fingerprints:
+
+- `registry_split_sha256` — document identities and their exact split assignment;
+- `source_snapshot_set_sha256` — the exact reviewed artifact versions.
+
+Annotation preparation copies each source snapshot into packet metadata **before**
+the frozen annotation manifest is written. Changing the target, provenance, split,
+or source artifact hash afterward invalidates the frozen contract.
 
 A tiny smoke fixture can bypass the coverage requirement only explicitly:
 
