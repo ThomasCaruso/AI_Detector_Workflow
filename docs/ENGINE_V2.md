@@ -164,6 +164,11 @@ matrix, in two distance modes: a content-free `stylistic` vector and the
 existing `composite` distance. The stylistic mode is the sensitive one, since
 candidates in a batch all express the same locked content.
 
+The cross-domain form of this experiment — 5 domains x 5 profiles x 2 samples —
+is the project's central experiment. See
+[`docs/COLLAPSE_EXPERIMENT.md`](COLLAPSE_EXPERIMENT.md) for the protocol and the
+decision rules.
+
 ### Replicates are required
 
 Within-profile dispersion needs at least two candidates from the same profile.
@@ -293,10 +298,12 @@ Implemented:
 - regression tests for the Engine v2 layer and providers, including an
   end-to-end zero-API run through the replay provider.
 
+- cross-domain collapse orchestrator and aggregate report with an explicit,
+  reproducible verdict.
+
 Next engineering milestones:
 
-1. run the five-profile, two-sample candidate batch across every seed domain and
-   record the collapse ratio for each;
+1. run the 5 x 5 x 2 generation matrix and produce the aggregate collapse table;
 2. retain accepted and rejected candidates with failure labels;
 3. compare provider/model families on the same evaluation cases, using the
    collapse ratio as the primary comparison statistic;

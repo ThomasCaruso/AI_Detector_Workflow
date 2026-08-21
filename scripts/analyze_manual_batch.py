@@ -13,34 +13,8 @@ if str(SRC) not in sys.path:
 from authorship_shift.batch_gate import assess_batch
 from authorship_shift.candidate_lab import analyze_candidates
 from authorship_shift.collapse import assess_collapse
+from authorship_shift.manual_batch import load_batch
 from authorship_shift.rerank import rerank
-
-
-def _manifest_candidates(manifest: dict) -> list[dict]:
-    """Return candidate entries from a v2 manifest, or adapt a v1 manifest.
-
-    The v1 layout had exactly one candidate per profile and keyed it by profile
-    name, so batches prepared before replicate support still analyze correctly.
-    """
-
-    entries = manifest.get("candidates")
-    if entries:
-        return list(entries)
-
-    adapted = []
-    for index, profile in enumerate(manifest.get("profiles", []), start=1):
-        adapted.append(
-            {
-                "candidate_id": profile["name"],
-                "profile": profile["name"],
-                "profile_index": profile.get("index", index),
-                "sample_index": 1,
-                "prompt_file": profile.get("prompt_file"),
-                "expected_output_file": profile["expected_output_file"],
-                "requested_controls": profile.get("requested_controls", {}),
-            }
-        )
-    return adapted
 
 
 def main() -> int:
@@ -61,58 +35,31 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    manifest_path = args.batch / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    source = manifest["source"]
+    batch = load_batch(args.batch)
 
-    candidates: list[tuple[str, str]] = []
-    labeled: list[tuple[str, str, str]] = []
-    missing: list[str] = []
-    for entry in _manifest_candidates(manifest):
-        relative = entry["expected_output_file"]
-        path = args.batch / relative
-        if not path.exists():
-            missing.append(relative)
-            continue
-        text = path.read_text(encoding="utf-8").strip()
-        if not text:
-            missing.append(relative)
-            continue
-        candidate_id = entry["candidate_id"]
-        candidates.append((candidate_id, text))
-        labeled.append((candidate_id, entry["profile"], text))
-
-    duplicate_ids = {cid for cid, _ in candidates if sum(1 for other, _ in candidates if other == cid) > 1}
-    if duplicate_ids:
-        raise RuntimeError(
-            f"manifest contains duplicate candidate ids: {sorted(duplicate_ids)}"
-        )
-
-    if missing and not args.allow_partial:
-        joined = "\n- ".join(missing)
+    if batch.missing and not args.allow_partial:
+        joined = "\n- ".join(batch.missing)
         raise RuntimeError(
             "manual batch is incomplete; missing or empty outputs:\n- " + joined
         )
-    if not candidates:
+    if not batch.candidates:
         raise RuntimeError("manual batch contains no completed candidate outputs")
 
-    analyses = analyze_candidates(source, candidates)
-    gate = assess_batch(
-        analyses,
-        target_words=manifest.get("target_words"),
-    )
-    collapse = assess_collapse(labeled)
+    analyses = analyze_candidates(batch.manifest["source"], batch.candidates)
+    gate = assess_batch(analyses, target_words=batch.target_words)
+    collapse = assess_collapse(batch.labeled)
     shortlist = rerank(
-        candidates,
+        batch.candidates,
         analyses,
-        target_words=manifest.get("target_words"),
-        select=max(1, min(args.select, len(candidates))),
+        target_words=batch.target_words,
+        select=max(1, min(args.select, len(batch.candidates))),
     )
+
     payload = {
-        "case_id": manifest.get("case_id"),
-        "candidate_count": len(candidates),
-        "samples_per_profile": manifest.get("samples_per_profile", 1),
-        "missing_outputs": missing,
+        "case_id": batch.case_id,
+        "candidate_count": len(batch.candidates),
+        "samples_per_profile": batch.manifest.get("samples_per_profile", 1),
+        "missing_outputs": batch.missing,
         "gate": gate.to_dict(),
         "collapse": collapse.to_dict(),
         "rerank": shortlist.to_dict(),
@@ -124,7 +71,7 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    print(f"case={manifest.get('case_id')} candidates={len(candidates)}")
+    print(f"case={batch.case_id} candidates={len(batch.candidates)}")
     for row in analyses:
         print(
             f"{row.candidate_id}: "
@@ -133,8 +80,8 @@ def main() -> int:
             f"opening_repeat={row.opening_repeat_ratio:.3f} "
             f"immutables={row.immutable_coverage:.3f}"
         )
-    if missing:
-        print(f"missing_outputs={len(missing)}")
+    if batch.missing:
+        print(f"missing_outputs={len(batch.missing)}")
     print(f"batch_gate={'PASS' if gate.pass_gate else 'FAIL'}")
     print(f"fidelity_evidence={gate.fidelity_evidence}")
     for failure in gate.hard_failures:

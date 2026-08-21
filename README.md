@@ -144,16 +144,28 @@ comes with a seeded permutation test, and the report states when a batch is too
 small for that test to reach significance rather than reporting a floor-bound
 p-value as evidence of no effect.
 
-Measuring this requires replicates:
+This is the project's central experiment, run across all five domains as
+`5 domains x 5 profiles x 2 samples = 50 generations`:
+
+```bash
+python scripts/run_collapse_experiment.py prepare   # writes 50 prompts, no API call
+python scripts/run_collapse_experiment.py status    # what is still outstanding
+python scripts/run_collapse_experiment.py report    # aggregate table and verdict
+```
+
+The report encodes the decision rules directly, so the verdict is reproducible
+rather than eyeballed across five separate reports. If the ratio stays near `1.0`
+across domains and providers, prompt- and sampling-level control has reached its
+limit, and an open-weight model with LoRA or fine-tuning becomes the next
+research direction.
+
+See [`docs/COLLAPSE_EXPERIMENT.md`](docs/COLLAPSE_EXPERIMENT.md) for the full
+protocol. A single domain can also be run on its own:
 
 ```bash
 python scripts/prepare_manual_batch.py business_valuation_001 --samples-per-profile 2
 python scripts/analyze_manual_batch.py experiments/manual_batches/business_valuation_001
 ```
-
-If the ratio stays near `1.0` across domains and providers, prompt- and
-sampling-level control has reached its limit, and an open-weight model with
-LoRA or fine-tuning becomes the next research direction.
 
 ## Candidate reranking
 

@@ -61,6 +61,13 @@ DistanceMode = str
 COMPOSITE: DistanceMode = "composite"
 STYLISTIC: DistanceMode = "stylistic"
 
+# Shared interpretation thresholds. The cross-domain suite reuses these so a
+# per-domain verdict and an aggregate verdict can never disagree about what
+# counts as collapsed.
+RATIO_COLLAPSED = 1.05
+RATIO_WEAK = 1.25
+P_SIGNIFICANT = 0.05
+
 
 def style_vector(text: str) -> list[float]:
     """Return a fixed-order, roughly 0..1 style descriptor for one text.
@@ -184,18 +191,18 @@ def _interpret(ratio: float, p_value: float | None, *, design_has_resolution: bo
             "collapsed: profile labels explain no more dispersion than a random "
             "regrouping of the same candidates"
         )
-    if not design_has_resolution and ratio >= 1.25:
+    if not design_has_resolution and ratio >= RATIO_WEAK:
         return (
             "separated (underpowered): dispersion favors the profiles, but too few "
             "candidates exist for the permutation test to confirm it; add samples "
             "per profile"
         )
-    if ratio < 1.05:
+    if ratio < RATIO_COLLAPSED:
         return (
             "collapsed: between-profile dispersion does not exceed within-profile "
             "dispersion"
         )
-    if ratio < 1.25:
+    if ratio < RATIO_WEAK:
         return "weak: profiles shift the output only slightly beyond sampling noise"
     return "separated: profiles move candidates beyond within-profile sampling noise"
 

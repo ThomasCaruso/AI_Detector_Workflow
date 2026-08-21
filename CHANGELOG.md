@@ -11,6 +11,12 @@
 - Wired collapse analysis and reranking into both the manual batch analyzer and the OpenAI runner. The runner remains dry-run by default.
 - Made a fresh checkout able to run `pytest` without an editable install.
 - Repaired stale README assertions in `test_portable_skill` that the v0.8 two-layer rewrite had invalidated, restoring a green suite.
+- Added the cross-domain collapse experiment orchestrator (`scripts/run_collapse_experiment.py`) with `prepare`, `status`, and `report` subcommands, covering the 5 domains x 5 profiles x 2 samples = 50 generation design.
+- Added `collapse_suite.py`, which aggregates per-domain collapse statistics into one table and one reproducible verdict encoding the documented interpretation rules, including domain-dependent controllability and the case where a profile effect is bought at the cost of fidelity.
+- The suite issues no collapse verdict when every measured domain fails the fidelity or length gate, since a ratio computed over candidates that lost content or missed the target length is not evidence about the model's writing distribution.
+- Extracted batch preparation and loading into `manual_batch.py` so the orchestrator, `prepare_manual_batch.py`, and `analyze_manual_batch.py` share one implementation; both scripts are now thin CLIs.
+- Reports order domains by the seed-case file rather than directory name, and render partially complete suites without failing.
+- Added `docs/COLLAPSE_EXPERIMENT.md` describing the protocol, the permutation-resolution constraint that makes 5x2 the minimum design, and the decision table.
 - External detector spend remains zero; all new analysis is deterministic and local.
 
 ## 0.8.0
