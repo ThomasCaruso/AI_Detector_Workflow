@@ -23,6 +23,8 @@ source IDs only when they represent independently identifiable documents/section
 with clear provenance; do not split one document merely to manipulate train/dev/
 holdout assignment.
 
+See `SOURCE_POOLS.md` for bootstrap source pools and their rights-policy links.
+
 ## 2. Create raw excerpt JSONL locally
 
 Raw text is gitignored. One line per excerpt:
@@ -67,14 +69,48 @@ required_qualifications
 Nothing automatically derives a semantic plan from the target. That is an
 intentional leakage control.
 
-## 4. Human semantic-plan annotation
+## 4. Semantic-plan annotation
+
+### Manual path
 
 For each packet, describe the information in the target without copying its prose.
-Then set:
+When review is complete, explicitly set:
 
 ```json
 "metadata": {"annotation_status": "ready", ...}
 ```
+
+### Optional model-assisted path
+
+To reduce annotation labor without allowing a model to approve its own training
+input:
+
+```bash
+python scripts/prepare_semantic_plan_batch.py \
+  research/lora/annotations \
+  research/lora/local_corpus/plan_batch
+```
+
+Run each generated prompt independently in a model surface if desired and save
+JSON only to the matching `*.response.json` file. Then ingest:
+
+```bash
+python scripts/ingest_semantic_plan_batch.py \
+  research/lora/local_corpus/plan_batch
+```
+
+The response parser accepts only semantic-plan fields. It cannot overwrite
+`target_text`, `split`, provenance, or packet metadata. Ingested suggestions are
+marked:
+
+```text
+annotation_status = needs_review
+plan_extraction_method = model_assisted
+```
+
+They are **not training examples** until a human reviewer checks semantic
+sufficiency, removes unsupported details or copied phrasing, and explicitly marks
+the packet `ready`.
 
 ### content_atoms
 
@@ -132,7 +168,28 @@ The second form refuses to produce a trainable corpus unless train, dev, and
 holdout all contain at least one ready example. The QLoRA runner independently
 rechecks the same requirement at `--execute` time.
 
-## 6. Validate without training
+## 6. Audit the corpus
+
+```bash
+python scripts/audit_lora_dataset.py \
+  research/lora/datasets/lora_v1.jsonl \
+  --json-out research/lora/local_corpus/corpus_audit.json
+```
+
+The audit reports:
+
+- examples and words by genre;
+- examples and words by provenance kind;
+- examples and words by source document;
+- largest source-document share;
+- near-duplicate target prose using word 5-gram Jaccard similarity;
+- near-duplicates that cross train/dev/holdout boundaries.
+
+Defaults warn when one source exceeds 15% of examples or words and when a genre
+has fewer than five examples. Those are corpus-design warnings rather than model
+hyperparameters; tune them only with an explicit corpus rationale.
+
+## 7. Validate without training
 
 ```bash
 python scripts/validate_lora_dataset.py research/lora/datasets/lora_v1.jsonl
