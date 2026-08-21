@@ -75,6 +75,18 @@ def test_render_prompt_carries_the_locked_material():
     assert "approximately 300 words" in text
 
 
+def test_render_prompt_requires_named_entities_to_be_named():
+    """Both constraint-first pilot candidates dropped the company name entirely.
+
+    The requirement is constant across every profile, so it cannot bias the
+    within-profile term against the between-profile term.
+    """
+
+    text = render_prompt(CASE, "constraint-first", "Open with the constraint.")
+    assert "by that exact name at least once" in text
+    assert 'do not refer to them only as "the company"' in text
+
+
 def test_render_prompt_without_a_target_length():
     case = dict(CASE)
     case.pop("target_words")
