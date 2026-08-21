@@ -11,6 +11,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from authorship_shift.corpus_audit import genre_split_coverage
+from authorship_shift.corpus_pipeline import DEFAULT_TARGET_GENRES
 from authorship_shift.lora_data import load_jsonl, validate_dataset
 
 
@@ -75,15 +77,30 @@ def build_training_rows(examples) -> list[dict[str, Any]]:
     return rows
 
 
+def _missing_genre_splits(examples) -> list[str]:
+    _, _, missing = genre_split_coverage(
+        examples,
+        expected_genres=DEFAULT_TARGET_GENRES,
+    )
+    return missing
+
+
 def dry_run(config: dict[str, Any], examples) -> int:
     report = validate_dataset(examples)
     rows = build_training_rows(examples)
+    missing_genre_splits = _missing_genre_splits(examples)
     print(f"dataset_valid={str(report.valid).lower()}")
     print(f"examples={report.example_count}")
     print(
         "splits="
         + ", ".join(f"{name}:{count}" for name, count in report.split_counts.items())
     )
+    print(
+        "genre_split_coverage="
+        + ("complete" if not missing_genre_splits else "incomplete")
+    )
+    if missing_genre_splits:
+        print("missing_genre_splits=" + ",".join(missing_genre_splits))
     print(f"base_model={config['base_model']}")
     print(f"output_dir={config['output_dir']}")
     print(f"prepared_prompt_completion_rows={len(rows)}")
@@ -99,7 +116,9 @@ def dry_run(config: dict[str, Any], examples) -> int:
         print("warnings:")
         for item in report.warnings:
             print(f"- {item}")
-    print("Add --execute only after the dataset and holdout contract are frozen.")
+    print(
+        "Add --execute only after the dataset, source-level splits, and per-genre holdout contract are frozen."
+    )
     return 0
 
 
@@ -114,7 +133,16 @@ def execute(config: dict[str, Any], examples) -> int:
     if report.split_counts.get("holdout", 0) == 0:
         raise RuntimeError("dataset contains no holdout examples; freeze one before training")
 
-    # Heavy imports are deliberately below the explicit --execute boundary.
+    missing_genre_splits = _missing_genre_splits(examples)
+    if missing_genre_splits:
+        raise RuntimeError(
+            "dataset lacks decision-grade genre x split coverage: "
+            + ", ".join(missing_genre_splits)
+        )
+
+    # Heavy imports are deliberately below the explicit --execute boundary and
+    # below every corpus-contract check above. A rejected corpus therefore cannot
+    # trigger a model download or GPU initialization.
     import torch
     from datasets import Dataset
     from peft import LoraConfig, prepare_model_for_kbit_training
