@@ -78,11 +78,17 @@ def build_candidate_registry_payload(
                     "author_or_agency": None,
                     "license": None,
                     "document_locator": None,
+                    "source_snapshot": {
+                        "retrieved_at": None,
+                        "sha256": None,
+                        "artifact_kind": None,
+                        "revision_label": None,
+                    },
                     "notes": (
                         "Placeholder slot only. Replace source_id with a stable ID for the "
                         "exact document; verify or replace provenance_kind; then fill title, "
-                        "URL/locator, rights basis, and third-party-material review before "
-                        "changing status to approved."
+                        "URL/locator, rights basis, exact-artifact snapshot, and third-party-"
+                        "material review before changing status to approved."
                     ),
                 }
             )
@@ -90,8 +96,8 @@ def build_candidate_registry_payload(
         "schema_version": 1,
         "template_note": (
             f"{len(sources)} candidate slots: {slots_per_genre} per target genre. "
-            "All records are intentionally unapproved. source_id and provenance_kind are "
-            "placeholders until exact-document selection and rights review."
+            "All records are intentionally unapproved. source_id, provenance_kind, and "
+            "source_snapshot are placeholders until exact-document selection and review."
         ),
         "sources": sources,
     }
