@@ -45,3 +45,43 @@ The business batch should therefore be re-analyzed from the frozen 20 outputs. I
 ### Experimental policy
 
 Do not regenerate the business candidates because of this correction. Re-run only deterministic analysis. If the collapse statistic changes, treat that as a bug because this measurement repair has no path to alter the texts or profile assignments.
+
+## 2026-08-21 — immutable precheck: integer percentages written as words
+
+### Trigger
+
+The corrected-template `science_summary_001` 5-profile x 4-sample batch produced 20 completed generations. Ten candidates failed exactly one immutable, `8%`, because they rendered the value as `8 percent` or `eight percent`. All other checkable details (`1,240`, `150`, and `30`) were preserved, word counts were in range, and the batch contained no near-duplicate candidates.
+
+This is the same class of instrument error as the earlier bare-integer correction: the value and unit are unchanged, but the precheck required one surface spelling. The generated outputs predate this correction, so re-analysis does not alter the generation process.
+
+### Correction
+
+A deliberately narrow percentage-equivalence rule was added:
+
+- an **unsigned integer percentage from 0 through 99** written as `N%` may match `N percent`, the equivalent number word plus `percent`, or the equivalent number word plus `per cent`;
+- the rule does **not** normalize decimals, currency, units, multipliers, or other percent-like language;
+- `8%` does not match `18 percent`, `80 percent`, `8.5 percent`, `8 percentage points`, or `eight percentage points`;
+- percentage points remain distinct because an 8% relative change and an 8-percentage-point change are not generally equivalent.
+
+Regression tests pin both the accepted equivalents and the non-equivalent boundary cases.
+
+### What this correction is allowed to change
+
+- immutable coverage for integer percentages;
+- candidate eligibility when the only prior failure was percentage surface form;
+- gate pass/fail status.
+
+### What this correction must not change
+
+- any generated candidate text;
+- within-profile dispersion;
+- between-profile dispersion;
+- collapse ratio;
+- permutation p-value;
+- profile labels;
+- generation prompts or sampling behavior;
+- external detector observations.
+
+### Experimental policy
+
+Do not regenerate Science because of this correction. Re-run deterministic analysis on the frozen 20 outputs. The Science collapse ratio must remain `1.227` and its permutation p-value must remain `0.0010`; if either changes, treat that as a bug. The prior gate failure remains part of the experimental history and should be documented as a precheck false positive rather than overwritten conceptually.
