@@ -1,4 +1,4 @@
-from authorship_shift.corpus_audit import audit_corpus
+from authorship_shift.corpus_audit import audit_corpus, genre_split_coverage
 from authorship_shift.lora_data import LoraExample, Provenance
 
 
@@ -75,3 +75,63 @@ def test_audit_does_not_flag_unrelated_targets():
     ]
     report = audit_corpus(rows, near_duplicate_threshold=0.50, max_source_share=1.0, min_genre_examples=1)
     assert report.near_duplicates == []
+
+
+def test_genre_split_coverage_reports_missing_cells_and_source_counts():
+    rows = [
+        _example("s-train", source_id="science-train", split="train"),
+        _example("s-dev", source_id="science-dev", split="dev"),
+        _example("s-hold", source_id="science-hold", split="holdout"),
+        _example("b-train", source_id="business-train", split="train", genre="business_analysis"),
+    ]
+    examples, sources, missing = genre_split_coverage(
+        rows,
+        expected_genres=("science_summary", "business_analysis"),
+    )
+    assert examples["science_summary"] == {"train": 1, "dev": 1, "holdout": 1}
+    assert sources["science_summary"] == {"train": 1, "dev": 1, "holdout": 1}
+    assert "business_analysis:dev" in missing
+    assert "business_analysis:holdout" in missing
+
+
+def test_audit_marks_complete_genre_split_matrix():
+    rows = []
+    for genre in ("science_summary", "business_analysis"):
+        for split in ("train", "dev", "holdout"):
+            rows.append(
+                _example(
+                    f"{genre}-{split}",
+                    source_id=f"{genre}-{split}-source",
+                    split=split,
+                    genre=genre,
+                    text=f"A distinct {genre} paragraph for {split} contains enough prose to audit the split matrix without reusing target text.",
+                )
+            )
+    report = audit_corpus(
+        rows,
+        max_source_share=1.0,
+        min_genre_examples=1,
+        expected_genres=("science_summary", "business_analysis"),
+    )
+    assert report.genre_split_coverage_ok is True
+    assert report.missing_genre_splits == []
+
+
+def test_audit_marks_entirely_missing_expected_genre():
+    rows = [
+        _example("s-train", source_id="science-train", split="train"),
+        _example("s-dev", source_id="science-dev", split="dev"),
+        _example("s-hold", source_id="science-hold", split="holdout"),
+    ]
+    report = audit_corpus(
+        rows,
+        max_source_share=1.0,
+        min_genre_examples=1,
+        expected_genres=("science_summary", "professional_writing"),
+    )
+    assert report.genre_split_coverage_ok is False
+    assert {
+        "professional_writing:train",
+        "professional_writing:dev",
+        "professional_writing:holdout",
+    }.issubset(set(report.missing_genre_splits))
