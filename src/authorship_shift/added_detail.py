@@ -2,13 +2,13 @@
 
 The immutable precheck answers only one direction of fidelity: did source details
 survive? This module covers a narrow part of the opposite direction by flagging
-capitalized identifiers that appear inside a sentence even though they never
+TitleCase-like identifiers that appear inside a sentence even though they never
 appear in the locked source.
 
 It is intentionally conservative. Sentence-initial capitalization is ignored,
-and this is not a general fact checker. Its purpose is to catch high-confidence
-additions such as introducing real company or product names into a source that
-named none.
+acronyms are ignored, and this is not a general fact checker. Its purpose is to
+catch high-confidence additions such as introducing real company or product names
+into a source that named none.
 """
 
 from __future__ import annotations
@@ -17,8 +17,10 @@ import re
 
 from .metrics import words
 
-# At least two characters avoids the pronoun "I" and most stray initials.
-_CAPITALIZED_TOKEN_RE = re.compile(r"\b[A-Z][A-Za-z0-9&.-]{1,}\b")
+# Requiring a lowercase second character keeps this focused on TitleCase-like
+# names (Sony, Toshiba, Microsoft) rather than abbreviations such as AI, R&D, EV,
+# or API, which may be legitimate lexical compression rather than new entities.
+_TITLECASE_TOKEN_RE = re.compile(r"\b[A-Z][a-z][A-Za-z0-9&.-]*\b")
 # Treat punctuation that commonly starts a fresh clause as a boundary for this
 # conservative check. This deliberately trades recall for fewer false positives.
 _CLAUSE_BOUNDARIES = set(".!?;:—")
@@ -33,22 +35,22 @@ def _is_clause_initial(text: str, start: int) -> bool:
 
 
 def added_name_hits(source: str, candidate: str) -> list[str]:
-    """Return high-confidence capitalized names added by ``candidate``.
+    """Return high-confidence TitleCase names added by ``candidate``.
 
     A hit must:
-    - be capitalized or all-caps;
+    - look like a TitleCase identifier rather than an acronym;
     - occur away from the start of a sentence/clause; and
     - not occur as a token anywhere in the locked source, case-insensitively.
 
     The function therefore catches constructions such as ``When Sony and Toshiba
     ...`` when neither company appears in the source, while ignoring ordinary
-    capitalization at the start of a sentence. It does not claim to detect all
-    fabricated details.
+    capitalization at the start of a sentence and abbreviations such as ``R&D``.
+    It does not claim to detect all fabricated details.
     """
 
     source_tokens = set(words(source))
     hits: set[str] = set()
-    for match in _CAPITALIZED_TOKEN_RE.finditer(candidate):
+    for match in _TITLECASE_TOKEN_RE.finditer(candidate):
         token = match.group(0)
         if token.lower() in source_tokens:
             continue
