@@ -21,6 +21,10 @@ class BatchGateConfig:
     # Report cases where the literal-detail precheck had nothing to check, so a
     # vacuous coverage of 1.0 is never read as verified fidelity.
     warn_on_vacuous_immutables: bool = True
+    # Added mid-sentence capitalized identifiers that do not occur in the source
+    # are high-confidence unsupported details. The detector is conservative and
+    # does not claim to catch every fabrication.
+    reject_added_names: bool = True
 
 
 @dataclass
@@ -118,6 +122,9 @@ def assess_batch(
                 f"missing={row.missing_immutables}"
             )
 
+        if cfg.reject_added_names and row.added_name_hits:
+            failures.append(f"unsupported added name(s)={row.added_name_hits}")
+
         if target_words is not None and target_words > 0:
             lower = target_words * (1.0 - cfg.target_word_tolerance)
             upper = target_words * (1.0 + cfg.target_word_tolerance)
@@ -147,7 +154,7 @@ def assess_batch(
 
     if candidate_failures:
         hard_failures.append(
-            f"{len(candidate_failures)} candidate(s) failed fidelity/length prerequisites"
+            f"{len(candidate_failures)} candidate(s) failed fidelity/length/added-detail prerequisites"
         )
     if candidate_warnings:
         warnings.append(
