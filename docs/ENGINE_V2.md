@@ -142,17 +142,106 @@ Profiles vary discourse organization independently from provider sampling contro
 
 These are diagnostics, not a human-authorship classifier. They answer engineering questions such as whether candidates actually diverged, whether numbers were preserved, whether supposedly different generations collapsed into near-duplicates, and whether the rewrite remained too close to source wording.
 
+## Collapse diagnostics
+
+`src/authorship_shift/collapse.py` answers the engine's central research
+question: did independent generation plus profile and sampling variation
+actually move the output, or did everything fall back into one model writing
+distribution?
+
+Mean pairwise distance cannot answer that. A batch posts a healthy mean whether
+the profile directives do anything or not, because ordinary sampling noise
+produces spread on its own. The statistic that separates those two worlds is the
+ratio of **between-profile** dispersion to **within-profile** dispersion:
+
+- ratio near `1.0` — profile directives move candidates no further than
+  resampling the same profile does. The profiles are decorative and the model
+  distribution dominates.
+- ratio well above `1.0` — profiles carve out genuinely different regions.
+
+The ratio is reported with a seeded permutation test over a fixed distance
+matrix, in two distance modes: a content-free `stylistic` vector and the
+existing `composite` distance. The stylistic mode is the sensitive one, since
+candidates in a batch all express the same locked content.
+
+### Replicates are required
+
+Within-profile dispersion needs at least two candidates from the same profile.
+A batch of one-sample-per-profile has no within-profile term, and the report
+says so instead of guessing:
+
+```bash
+python scripts/prepare_manual_batch.py business_valuation_001 --samples-per-profile 2
+```
+
+Run every prompt as a separate generation even when two prompts for the same
+profile are identical. That identity is the point: the difference between those
+two outputs *is* the within-profile term.
+
+### The design reports its own statistical power
+
+Relabeling equal-sized profile groups reproduces the same partition and
+therefore ties with the observed ratio, which puts a floor under the p-value:
+
+| design | distinct groupings | smallest reachable p |
+|---|---|---|
+| 3 profiles x 2 samples | 90 | 3!/90 = 0.067 |
+| 5 profiles x 2 samples | 113,400 | 5!/113,400 = 0.001 |
+
+A three-by-two batch cannot produce a significant p-value however large the real
+effect is. The report flags such a batch as underpowered and refuses to call a
+large effect collapsed on the strength of a p-value the design could never have
+produced. **The five-profile, two-sample batch is the smallest adequately
+powered design**, which is why it is the recommended default.
+
 ## Batch gate
 
 `src/authorship_shift/batch_gate.py` rejects a candidate batch before scarce external review when basic prerequisites fail. The default gate checks:
 
 - minimum candidate count;
 - minimum mean pairwise distance;
+- minimum nearest-neighbor distance, which catches a near-duplicate pair hiding
+  inside an otherwise well-spread batch;
 - immutable-detail coverage;
 - target-length tolerance;
 - warnings for repeated openings, transition-heavy prose, and high literal source overlap.
 
 A gate pass does **not** mean that a candidate is human-authored or that a detector will label it in any particular way. It means the batch is diverse and faithful enough to justify deeper evaluation.
+
+### Fidelity evidence is reported separately from coverage
+
+`immutable_coverage` returns `1.0` when a source exposes no checkable literal
+details, which is not the same thing as verified fidelity. The gate therefore
+reports `fidelity_evidence` as one of:
+
+- `checked` — every candidate had literal details to verify;
+- `partial` — some candidates had none;
+- `vacuous` — nothing in the batch was checkable, and the coverage number
+  carries no information.
+
+`competition_innovation_001` is a `vacuous` case: its source contains no
+numbers or proper names at all. Its gate result says nothing about fidelity, and
+the report now states that rather than presenting a clean pass.
+
+## Candidate reranking
+
+`src/authorship_shift/rerank.py` ranks candidates that clear the gate and
+shortlists a subset for deeper review.
+
+Because the diagnostics are explicitly not quality targets, the reranker scores
+**defects rather than merit**. Each term penalizes a value only for crossing a
+threshold in the bad direction and contributes nothing otherwise, so no
+candidate can win by pushing a metric to an extreme. Prose with ordinary
+transition use scores the same zero as prose with none.
+
+Selection is greedy and deterministic: the cleanest candidate goes first, then
+each further slot goes to whichever quality-equivalent candidate sits furthest
+from everything already chosen. Diversity breaks ties within an explicit
+tolerance; it never outranks quality.
+
+Two stages remain outside the deterministic layer and are named in the output
+rather than silently skipped: confirming that causal direction and certainty
+survived, and scoring voice match against genuine writing samples.
 
 ## Selection philosophy
 
@@ -194,16 +283,28 @@ Implemented:
 - conservative immutable-detail precheck;
 - pairwise candidate-diversity measurement;
 - batch gating before deeper review;
-- manual batch preparation and analysis;
+- manual batch preparation and analysis, with configurable samples per profile;
 - replay provider for offline candidate ingestion;
 - optional OpenAI Responses API generator;
 - dry-run-by-default automatic OpenAI batch runner;
-- regression tests for the Engine v2 layer and providers.
+- between-profile versus within-profile collapse diagnostics with a permutation
+  test that reports its own statistical power;
+- deterministic defect-based reranking and diversity-aware shortlisting;
+- regression tests for the Engine v2 layer and providers, including an
+  end-to-end zero-API run through the replay provider.
 
 Next engineering milestones:
 
-1. run the five-profile candidate batch across every seed domain;
+1. run the five-profile, two-sample candidate batch across every seed domain and
+   record the collapse ratio for each;
 2. retain accepted and rejected candidates with failure labels;
-3. add quality/fidelity reranking over candidates that pass the deterministic gate;
-4. compare provider/model families without changing the evaluation cases;
-5. decide from the accumulated evidence whether a tuned open-weight model or adapter is justified.
+3. compare provider/model families on the same evaluation cases, using the
+   collapse ratio as the primary comparison statistic;
+4. decide from the accumulated evidence whether a tuned open-weight model or
+   adapter is justified.
+
+The decision rule for milestone 4 is now concrete. If independent generations
+plus profile and sampling variation produce a separation ratio near `1.0` across
+domains and providers, prompt- and sampling-level control has reached its limit,
+and an open-weight model with LoRA or full fine-tuning becomes the next
+research direction.

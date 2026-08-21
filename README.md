@@ -130,6 +130,39 @@ Routine development should not depend on paid external tests.
 
 These are **diagnostics, not authorship classifiers**. No individual metric is treated as a quality target.
 
+## Distribution-collapse analysis
+
+`src/authorship_shift/collapse.py` addresses the question the project actually
+needs answered: do independent generations plus profile and sampling variation
+escape the model's writing distribution, or collapse back into it?
+
+Mean pairwise distance cannot tell those apart, because sampling noise produces
+spread on its own. The engine instead compares **between-profile** dispersion to
+**within-profile** dispersion. A ratio near `1.0` means the profile directives
+move candidates no further than resampling the same profile does. The ratio
+comes with a seeded permutation test, and the report states when a batch is too
+small for that test to reach significance rather than reporting a floor-bound
+p-value as evidence of no effect.
+
+Measuring this requires replicates:
+
+```bash
+python scripts/prepare_manual_batch.py business_valuation_001 --samples-per-profile 2
+python scripts/analyze_manual_batch.py experiments/manual_batches/business_valuation_001
+```
+
+If the ratio stays near `1.0` across domains and providers, prompt- and
+sampling-level control has reached its limit, and an open-weight model with
+LoRA or fine-tuning becomes the next research direction.
+
+## Candidate reranking
+
+`src/authorship_shift/rerank.py` shortlists candidates that clear the gate. It
+scores **defects rather than merit**, so nothing wins by pushing a metric to an
+extreme, and it prefers diversity only among candidates of equivalent quality.
+Causal/certainty fidelity and voice match still require a judge model or human
+review, and the output says so.
+
 Run the current regression corpus with:
 
 ```bash

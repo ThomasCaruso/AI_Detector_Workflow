@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the immutable-detail precheck, which was unsound in both directions. Capitalized-phrase extraction no longer runs across sentence boundaries, so impossible immutables such as `"EBITDA. Normalized EBITDA"` are gone; matching is now boundary-aware and case-insensitive, so a bare `9` no longer matches inside `1,900` and source-side sentence-initial capitals no longer cause false failures.
+- Added `fidelity_evidence` reporting so a coverage of `1.0` on a source with no checkable literal details is never presented as verified fidelity. `competition_innovation_001` is such a case and previously reported a clean pass on no evidence.
+- Added nearest-neighbor distance per candidate and a batch-gate failure for near-duplicate pairs, which mean pairwise distance cannot detect.
+- Added `collapse.py`: between-profile versus within-profile dispersion with a seeded permutation test, in a content-free stylistic mode and the existing composite mode. Reports its own statistical power and declines to call a large effect collapsed when the design could not have confirmed it.
+- Added `--samples-per-profile` to manual batch preparation, with a schema-v2 manifest of explicit candidate records and seed offsets matching `generate_candidate_batch`. Within-profile dispersion was previously unmeasurable on the zero-API path.
+- Added `rerank.py`: defect-based scoring and diversity-aware shortlisting over gate-passing candidates, completing the third Engine v2 milestone.
+- Wired collapse analysis and reranking into both the manual batch analyzer and the OpenAI runner. The runner remains dry-run by default.
+- Made a fresh checkout able to run `pytest` without an editable install.
+- Repaired stale README assertions in `test_portable_skill` that the v0.8 two-layer rewrite had invalidated, restoring a green suite.
+- External detector spend remains zero; all new analysis is deterministic and local.
+
 ## 0.8.0
 
 - Hardened locked-holdout integrity checks so validation detects altered partition metadata in addition to changed source texts and decisions.

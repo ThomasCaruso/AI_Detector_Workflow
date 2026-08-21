@@ -47,6 +47,36 @@ experiments/manual_batches/competition_innovation_001/
 
 The manifest records the requested generation profile and sampling controls for each candidate.
 
+### Replicates, and why you usually want them
+
+The command above produces one candidate per profile. That is enough to inspect
+candidates and run the batch gate, but it **cannot** tell you whether the
+profiles did anything: with one sample per profile there is no within-profile
+dispersion to compare against, so a profile effect is indistinguishable from
+ordinary sampling noise.
+
+For the collapse experiment, ask for at least two samples per profile:
+
+```bash
+python scripts/prepare_manual_batch.py business_valuation_001 --samples-per-profile 2
+```
+
+This writes ten prompts instead of five:
+
+```text
+prompts/01_direct-plain_c1.md
+prompts/01_direct-plain_c2.md
+...
+prompts/05_compressed-asymmetric_c2.md
+```
+
+The two prompts for a profile are identical, and that is deliberate. Running
+them as separate generations is what produces the within-profile term. Do not
+shortcut this by asking one response for two variants.
+
+Five profiles at two samples is the smallest design with enough permutation
+resolution to produce a significant result; see `docs/ENGINE_V2.md`.
+
 ## 3. Generate each candidate separately
 
 Run each prompt file as a separate generation in the model surface you are testing.
@@ -81,16 +111,32 @@ experiments/manual_batches/competition_innovation_001/analysis.json
 
 The report includes deterministic diagnostics for each candidate:
 
-- pairwise candidate distance;
+- pairwise candidate distance and nearest-neighbor distance;
 - source trigram overlap;
 - structural distance;
 - sentence-opening repetition and entropy;
 - transition frequency;
 - repeated trigrams;
-- conservative immutable-detail coverage;
+- conservative immutable-detail coverage and the number of checkable details;
 - basic length and lexical metrics.
 
+It also reports, for the batch as a whole:
+
+- `fidelity_evidence` — whether the immutable-detail precheck actually had
+  anything to verify, so a coverage of `1.0` on a source with no numbers or
+  names is never mistaken for verified fidelity;
+- the **collapse analysis** — between-profile versus within-profile dispersion
+  with a permutation test, when replicates are available;
+- a **shortlist** — candidates ranked by accumulated defects, with a
+  diversity-aware selection among quality-equivalent candidates.
+
 These diagnostics do not identify human or AI authorship. They exist to catch engineering failures such as near-duplicate candidate batches, excessive source copying, lost numbers, or profile collapse.
+
+Shortlist size is configurable:
+
+```bash
+python scripts/analyze_manual_batch.py experiments/manual_batches/business_valuation_001 --select 3
+```
 
 ## 5. Analyze a historical structured case
 
