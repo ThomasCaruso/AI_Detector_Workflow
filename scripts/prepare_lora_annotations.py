@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from authorship_shift.annotation_integrity import write_frozen_manifest
 from authorship_shift.corpus_pipeline import (
     DEFAULT_SPLIT_SEED,
     load_raw_excerpts,
@@ -47,11 +48,14 @@ def main() -> int:
         return 2
 
     written = write_annotation_packets(packets, args.out_dir)
+    frozen_manifest = write_frozen_manifest(packets, args.out_dir)
     print(f"written_packets={len(written)}")
+    print(f"frozen_manifest={frozen_manifest}")
     print(f"out_dir={args.out_dir}")
     print(
         "Fill content_atoms, immutable_details, required_qualifications, then set "
-        "metadata.annotation_status to 'ready'. Do not rewrite target_text."
+        "metadata.annotation_status to 'ready'. The frozen manifest prevents target, "
+        "instruction, split, genre, or provenance from changing after preparation."
     )
     return 0
 
