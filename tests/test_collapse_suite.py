@@ -234,7 +234,10 @@ def test_run_suite_aggregates_and_renders(tmp_path):
     assert "| Domain | Collapse ratio | p | Gate | Interpretation |" in markdown
     assert "Technical explanation" in markdown
     assert "## Verdict" in markdown
-    assert "5 domains x 5 generation profiles x 2 independent samples" in markdown
+    # The design line is derived from the batch, not hardcoded, so a 5x4 run is
+    # not mislabelled as 5x2. This fixture is one domain at 5x2.
+    assert "1 domains x 5 generation profiles x 2 independent samples" in markdown
+    assert "= 10 generations" in markdown
 
     payload = json.loads(json.dumps(report.to_dict()))
     assert payload["domains"][0]["case_id"] == CASE["id"]

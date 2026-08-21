@@ -413,11 +413,16 @@ def _num(value: float | None, digits: int = 3) -> str:
 
 
 def build_markdown(report: SuiteReport) -> str:
+    # Derive the design line from the data; hardcoding it mislabels any run that
+    # does not use the original 5x2 shape.
+    measured = [row for row in report.domains if row.expected_count]
+    per_domain = measured[0].expected_count if measured else 0
+    samples = per_domain // 5 if per_domain else 0
     lines = [
         "# Cross-domain collapse experiment",
         "",
-        "Design: 5 domains x 5 generation profiles x 2 independent samples per "
-        "profile = 50 generations.",
+        f"Design: {len(report.domains)} domains x 5 generation profiles x {samples} "
+        f"independent samples per profile = {len(report.domains) * per_domain} generations.",
         "",
         "## Verdict",
         "",
