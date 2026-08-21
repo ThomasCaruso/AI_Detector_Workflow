@@ -77,11 +77,45 @@ def test_immutable_matching_respects_number_boundaries():
     assert immutable_matches("net debt of 2.0 million", "2.0")
 
 
+def test_bare_integer_immutables_accept_equivalent_number_words():
+    """Ordinary spelling-out of a bare integer preserves the immutable value."""
+
+    assert immutable_matches("roughly nine percentage points of growth", "9")
+    assert immutable_matches("roughly twenty-one units", "21")
+    assert immutable_matches("roughly twenty one units", "21")
+    assert not immutable_matches("roughly nineteen percentage points", "9")
+    assert not immutable_matches("a nine-year period", "9")
+
+    source = "Approximately 9 percentage points came from the temporary program."
+    coverage, missing = immutable_coverage(
+        source,
+        "Roughly nine percentage points came from the temporary program.",
+    )
+    assert coverage == 1.0
+    assert missing == []
+
+
 def test_immutable_matching_ignores_sentence_initial_capitalization():
     """Source-side sentence-initial capitals must not cause false failures."""
 
     assert immutable_matches("normalized EBITDA is estimated", "Normalized EBITDA")
     assert immutable_matches("reported ebitda fell", "EBITDA")
+
+
+def test_sentence_initial_common_noun_phrase_is_not_extracted_as_a_name():
+    """A case variant elsewhere in the source is evidence of ordinary terminology."""
+
+    source = (
+        "Normalized EBITDA is estimated at $1.9 million. "
+        "The buyer values the business at 11.1x normalized EBITDA. "
+        "Northstar Mobility remains the operating company."
+    )
+    items = extract_immutables(source)
+
+    assert "Normalized EBITDA" not in items
+    assert "Northstar Mobility" in items
+    assert "$1.9" in items
+    assert "11.1x" in items
 
 
 def test_immutable_coverage_reports_when_nothing_is_checkable():
