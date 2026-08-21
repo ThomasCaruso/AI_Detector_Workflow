@@ -1,0 +1,8 @@
+# Optional research dependencies. The core AuthorshipShift package intentionally
+# keeps no heavyweight ML runtime dependency.
+transformers>=4.51.0
+peft>=0.19.1
+trl
+datasets
+accelerate
+bitsandbytes
