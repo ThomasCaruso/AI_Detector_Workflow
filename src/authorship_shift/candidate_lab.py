@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import math
 import re
 from typing import Iterable, Sequence
 
+from .added_detail import added_name_hits
 from .diversity import pair_distance
 from .metrics import measure, sentences, words
 
@@ -21,6 +22,7 @@ _CAP_TOKEN = r"[A-Z][A-Za-z0-9&-]+(?:\.[A-Z][A-Za-z0-9&-]+)*"
 CAPITALIZED_PHRASE_RE = re.compile(
     rf"\b(?:{_CAP_TOKEN}(?:\s+{_CAP_TOKEN}){{0,3}})\b"
 )
+_LEADING_ARTICLES = {"A", "An", "The"}
 
 GENERIC_SENTENCE_STARTS = {
     "additionally",
@@ -162,13 +164,23 @@ def extract_immutables(source: str) -> list[str]:
     numbers, multiword capitalized names, and all-caps identifiers. A multiword
     capitalized phrase is excluded when the same words appear elsewhere in the
     source with different casing, which is evidence that the phrase is ordinary
-    terminology rather than a name. Single-word title-case names should come
-    from the semantic/content lock in a full run.
+    terminology rather than a name. Leading articles are stripped from a likely
+    identifier, so ``The Atlas`` protects ``Atlas`` rather than treating the
+    sentence article as part of the name. Single-word title-case names otherwise
+    remain too ambiguous for this surface precheck and belong in the semantic
+    content lock.
     """
 
     items = set(NUMBER_RE.findall(source))
     for phrase in CAPITALIZED_PHRASE_RE.findall(source):
         parts = phrase.split()
+        if len(parts) >= 2 and parts[0] in _LEADING_ARTICLES:
+            remainder = " ".join(parts[1:])
+            if all(part.isupper() for part in parts[1:]) or not _phrase_has_case_variant(
+                source, remainder
+            ):
+                items.add(remainder)
+            continue
         if len(parts) >= 2:
             if all(part.isupper() for part in parts) or not _phrase_has_case_variant(source, phrase):
                 items.add(phrase)
@@ -303,6 +315,7 @@ class CandidateAnalysis:
     mean_pairwise_distance: float = 0.0
     nearest_neighbor_distance: float = 0.0
     nearest_neighbor_id: str | None = None
+    added_name_hits: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -329,6 +342,7 @@ def analyze_candidate(source: str, candidate_id: str, text: str) -> CandidateAna
         immutable_coverage=coverage,
         missing_immutables=missing,
         immutable_count=len(extract_immutables(source)),
+        added_name_hits=added_name_hits(source, text),
     )
 
 
