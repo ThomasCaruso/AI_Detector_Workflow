@@ -99,6 +99,54 @@ def test_long_target_prose_may_not_be_copied_into_content_atoms():
     assert any("semantic plans should not leak" in item for item in report.errors)
 
 
+@pytest.mark.parametrize(
+    "field_name, label",
+    [
+        ("immutable_details", "immutable detail"),
+        ("required_qualifications", "required qualification"),
+    ],
+)
+def test_target_prose_may_not_leak_through_other_plan_list_fields(field_name, label):
+    """Every plan field is rendered into the prompt, not just content_atoms.
+
+    Guarding only content_atoms left three paths by which the completion could
+    be recovered from its own input, which would train the model to copy.
+    """
+
+    target = (
+        "This deliberately long sentence contains enough consecutive words to show "
+        "why the semantic plan cannot simply copy the target prose verbatim during training."
+    )
+    payload = _payload(target_text=target, **{field_name: [target]})
+
+    report = validate_dataset([parse_example(payload)])
+    assert report.valid is False
+    assert any(f"{label} copies a 12+ word span" in item for item in report.errors)
+
+
+def test_target_prose_may_not_leak_through_the_instruction():
+    target = (
+        "This deliberately long sentence contains enough consecutive words to show "
+        "why the semantic plan cannot simply copy the target prose verbatim during training."
+    )
+    payload = _payload(target_text=target, instruction=target)
+
+    report = validate_dataset([parse_example(payload)])
+    assert report.valid is False
+    assert any("instruction copies a 12+ word span" in item for item in report.errors)
+
+
+def test_short_plan_fields_that_echo_the_target_remain_allowed():
+    """The guard targets verbatim leakage, not ordinary shared terminology."""
+
+    payload = _payload(
+        immutable_details=["43 minutes"],
+        required_qualifications=["trigger and amplifier are distinct"],
+    )
+    report = validate_dataset([parse_example(payload)])
+    assert report.valid is True
+
+
 def test_jsonl_loader_and_split_counts(tmp_path):
     rows = [
         _payload(id="train-1", split="train"),

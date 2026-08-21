@@ -204,12 +204,25 @@ def validate_dataset(examples: Iterable[LoraExample]) -> DatasetValidationReport
                 "may teach formatting more than sustained prose behavior"
             )
         normalized_target = " ".join(row.target_text.split()).lower()
-        for atom in row.content_atoms:
-            if len(atom.split()) >= 12 and " ".join(atom.split()).lower() in normalized_target:
-                errors.append(
-                    f"{row.id}: content atom copies a 12+ word span from target_text; "
-                    "semantic plans should not leak target prose"
-                )
+        # Every field below is rendered into the training prompt, so a verbatim
+        # span in any of them leaks the completion into its own input. Checking
+        # only content_atoms would leave three open paths.
+        plan_fields: tuple[tuple[str, tuple[str, ...]], ...] = (
+            ("content atom", row.content_atoms),
+            ("immutable detail", row.immutable_details),
+            ("required qualification", row.required_qualifications),
+            ("instruction", (row.instruction,)),
+        )
+        for field_label, values in plan_fields:
+            for value in values:
+                if (
+                    len(value.split()) >= 12
+                    and " ".join(value.split()).lower() in normalized_target
+                ):
+                    errors.append(
+                        f"{row.id}: {field_label} copies a 12+ word span from target_text; "
+                        "semantic plans should not leak target prose"
+                    )
 
     for example_id, count in sorted(ids.items()):
         if count > 1:

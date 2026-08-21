@@ -75,7 +75,9 @@ def _outcome(
 def test_no_measured_domains_decides_nothing():
     verdict = decide([_outcome("a", measured=False), _outcome("b", measured=False)])
     assert verdict.key == VERDICT_INSUFFICIENT
-    assert "Complete the 5 x 5 x 2" in verdict.next_step
+    # Phrased without a hardcoded design now that 5x4 is the default and the
+    # generic summariser is reused for smaller diagnostic batches.
+    assert "Complete the cross-domain generation matrix" in verdict.next_step
 
 
 def test_ratio_near_one_across_domains_points_at_lora():
@@ -162,7 +164,10 @@ def test_weak_but_insignificant_effect_asks_for_more_samples():
     domains = [_outcome(f"d{i}", ratio=1.15) for i in range(4)]
     verdict = decide(domains)
     assert verdict.key == VERDICT_WEAK
-    assert "Increase samples per profile" in verdict.next_step
+    # decide() is now the generic summariser; the final action policy lives in
+    # verdict_guard, so this defers rather than issuing a training decision.
+    assert "increase samples per profile" in verdict.next_step
+    assert "final verdict guard" in verdict.next_step
 
 
 def test_underpowered_domains_are_called_out():
@@ -234,10 +239,12 @@ def test_run_suite_aggregates_and_renders(tmp_path):
     assert "| Domain | Collapse ratio | p | Gate | Interpretation |" in markdown
     assert "Technical explanation" in markdown
     assert "## Verdict" in markdown
-    # The design line is derived from the batch, not hardcoded, so a 5x4 run is
-    # not mislabelled as 5x2. This fixture is one domain at 5x2.
-    assert "1 domains x 5 generation profiles x 2 independent samples" in markdown
-    assert "= 10 generations" in markdown
+    # The header no longer states the design; the per-domain sample counts in the
+    # detail table carry it instead. What must not return is a hardcoded design
+    # string that could mislabel a run of a different shape.
+    assert "within-profile and between-profile stylistic dispersion" in markdown
+    assert "5 generation profiles x 2 independent samples" not in markdown
+    assert "10/10" in markdown
 
     payload = json.loads(json.dumps(report.to_dict()))
     assert payload["domains"][0]["case_id"] == CASE["id"]
