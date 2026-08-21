@@ -10,6 +10,15 @@ from authorship_shift.collapse_suite import (
 )
 from authorship_shift.verdict_guard import apply_final_verdict_guard, trusted_domains
 
+# Verdict keys whose next_step actively directs the project to start training.
+# Naming LoRA in order to rule it out is the opposite of recommending it, so the
+# invariant is checked against the verdict key rather than a substring.
+TRAINING_RECOMMENDING_VERDICTS = {VERDICT_COLLAPSED}
+
+
+def _assert_does_not_recommend_training(verdict) -> None:
+    assert verdict.key not in TRAINING_RECOMMENDING_VERDICTS
+
 
 def _domain(
     name: str,
@@ -62,8 +71,10 @@ def test_partial_suite_can_never_recommend_training():
 
     guarded = apply_final_verdict_guard(report)
     assert guarded.verdict.key == VERDICT_INSUFFICIENT
-    assert "LoRA" not in guarded.verdict.next_step
+    _assert_does_not_recommend_training(guarded.verdict)
     assert "remaining independent generations" in guarded.verdict.next_step
+    # The guard names LoRA explicitly in order to rule it out.
+    assert "Do not move to LoRA or fine-tuning from a partial suite" in guarded.verdict.next_step
 
 
 def test_vacuous_and_gate_failing_domains_do_not_vote():
@@ -80,7 +91,7 @@ def test_vacuous_and_gate_failing_domains_do_not_vote():
     assert [row.case_id for row in trusted_domains(report)] == ["business", "professional"]
     guarded = apply_final_verdict_guard(report)
     assert guarded.verdict.key == VERDICT_GATE_BLOCKED
-    assert "LoRA" not in guarded.verdict.next_step
+    _assert_does_not_recommend_training(guarded.verdict)
 
 
 def test_final_verdict_uses_only_trusted_cross_domain_evidence():
