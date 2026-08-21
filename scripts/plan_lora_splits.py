@@ -21,6 +21,10 @@ from authorship_shift.corpus_pipeline import (
     validate_source_registry,
 )
 from authorship_shift.registry_preview import planning_source_records
+from authorship_shift.source_snapshot import (
+    load_registry_snapshots,
+    snapshot_set_sha256,
+)
 
 
 def main() -> int:
@@ -45,6 +49,11 @@ def main() -> int:
     )
     parser.add_argument("--json-out", type=Path, default=None)
     args = parser.parse_args()
+
+    snapshots, snapshot_errors = load_registry_snapshots(args.source_registry)
+    if snapshot_errors:
+        print(json.dumps({"valid": False, "source_snapshot_errors": snapshot_errors}, indent=2))
+        return 2
 
     sources = load_source_registry(args.source_registry)
     registry_report = validate_source_registry(sources)
@@ -103,6 +112,8 @@ def main() -> int:
         "split_strategy": SPLIT_STRATEGY,
         "registry_split_sha256": None if preview else fingerprint,
         "preview_split_sha256": fingerprint if preview else None,
+        "source_snapshot_set_sha256": snapshot_set_sha256(snapshots),
+        "snapshotted_approved_sources": len(snapshots),
         "approved_sources": sum(1 for row in sources if row.status == "approved"),
         "candidate_sources_in_preview": len(promoted_candidates),
         "promoted_candidate_source_ids": promoted_candidates,
@@ -113,7 +124,7 @@ def main() -> int:
         "warning": (
             "Preview only: candidate sources remain unapproved. This fingerprint is not a "
             "frozen training split contract; run again without --include-candidates after "
-            "rights review and approval."
+            "rights review, exact-artifact snapshotting, and approval."
             if preview
             else None
         ),
