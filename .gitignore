@@ -18,3 +18,10 @@ ablations/*
 
 # Local reports/splits are experiment artifacts.
 corpus/split.json
+
+# LoRA corpus material may contain user-owned, consented, licensed, or public-domain
+# source text. Keep raw excerpts, human annotations, and compiled datasets local;
+# commit only tooling, schemas, source metadata, hashes, and aggregate reports.
+research/lora/local_corpus/
+research/lora/annotations/
+research/lora/datasets/
