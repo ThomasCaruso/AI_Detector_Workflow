@@ -5,13 +5,15 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
-FROZEN_MANIFEST_SCHEMA_VERSION = 1
+FROZEN_MANIFEST_SCHEMA_VERSION = 2
 FROZEN_MANIFEST_NAME = "_frozen_manifest.json"
 
 
 def frozen_packet_payload(packet: dict[str, Any]) -> dict[str, Any]:
     """Return packet fields that annotation is never allowed to alter."""
 
+    metadata = packet.get("metadata")
+    source_snapshot = metadata.get("source_snapshot") if isinstance(metadata, dict) else None
     return {
         "id": packet.get("id"),
         "genre": packet.get("genre"),
@@ -19,6 +21,7 @@ def frozen_packet_payload(packet: dict[str, Any]) -> dict[str, Any]:
         "instruction": packet.get("instruction"),
         "target_text": packet.get("target_text"),
         "provenance": packet.get("provenance"),
+        "source_snapshot": source_snapshot,
     }
 
 
@@ -51,6 +54,7 @@ def build_frozen_manifest(packets: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "instruction",
             "target_text",
             "provenance",
+            "metadata.source_snapshot",
         ],
         "packets": fingerprints,
     }
