@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import hashlib
 import json
 from pathlib import Path
 import re
 from typing import Any
 
-EXTERNAL_PROVENANCE_KINDS = {"licensed", "public_domain"}
 ALLOWED_ARTIFACT_KINDS = {"pdf", "html", "text", "other"}
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
@@ -64,11 +64,12 @@ def parse_source_snapshot(payload: Any, *, source_id: str) -> SourceSnapshot:
 
 
 def load_registry_snapshots(path: str | Path) -> tuple[dict[str, SourceSnapshot], list[str]]:
-    """Validate exact-artifact snapshots without changing the registry parser.
+    """Validate exact-artifact snapshots for every approved source.
 
-    Approved externally sourced documents must pin the bytes actually reviewed
-    for excerpting. Candidate/rejected records may remain incomplete, and
-    user-owned/consented records may opt into the same snapshot contract.
+    Rights and artifact identity are separate concerns. Public-domain, licensed,
+    user-owned, and consented documents can all change over time, so every
+    approved source must pin the exact bytes reviewed for excerpting. Candidate
+    and rejected records may remain incomplete.
     """
 
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -84,15 +85,13 @@ def load_registry_snapshots(path: str | Path) -> tuple[dict[str, SourceSnapshot]
             continue
         source_id = str(row.get("source_id", "")).strip() or f"source line {index}"
         status = str(row.get("status", "")).strip()
-        provenance_kind = str(row.get("provenance_kind", "")).strip()
         snapshot_payload = row.get("source_snapshot")
 
-        required = status == "approved" and provenance_kind in EXTERNAL_PROVENANCE_KINDS
         if snapshot_payload is None:
-            if required:
+            if status == "approved":
                 errors.append(
-                    f"{source_id}: approved {provenance_kind} source requires source_snapshot "
-                    "with retrieval time and exact artifact SHA-256"
+                    f"{source_id}: approved source requires source_snapshot with retrieval "
+                    "time and exact artifact SHA-256"
                 )
             continue
         try:
@@ -104,3 +103,21 @@ def load_registry_snapshots(path: str | Path) -> tuple[dict[str, SourceSnapshot]
             errors.append(str(exc))
 
     return snapshots, errors
+
+
+def snapshot_set_sha256(snapshots: dict[str, SourceSnapshot]) -> str | None:
+    """Fingerprint exact source artifacts independently of split assignment."""
+
+    if not snapshots:
+        return None
+    payload = [
+        {"source_id": source_id, **snapshots[source_id].to_dict()}
+        for source_id in sorted(snapshots)
+    ]
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
