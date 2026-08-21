@@ -19,6 +19,7 @@ from authorship_shift.corpus_pipeline import (
     validate_source_registry,
     write_annotation_packets,
 )
+from authorship_shift.source_snapshot import load_registry_snapshots
 
 
 def main() -> int:
@@ -40,6 +41,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    snapshots, snapshot_errors = load_registry_snapshots(args.source_registry)
+    if snapshot_errors:
+        print(json.dumps({"source_snapshot_valid": False, "errors": snapshot_errors}, indent=2))
+        return 2
+
     sources = load_source_registry(args.source_registry)
     registry_report = validate_source_registry(sources)
     if not registry_report.valid:
@@ -57,6 +63,15 @@ def main() -> int:
     if not report.valid:
         return 2
 
+    # Snapshot metadata is copied from the reviewed registry into the annotation
+    # packet before the frozen manifest is written. It is provenance/audit data,
+    # never part of the model prompt.
+    for packet in packets:
+        source_id = packet["provenance"]["source_id"]
+        snapshot = snapshots.get(source_id)
+        if snapshot is not None:
+            packet.setdefault("metadata", {})["source_snapshot"] = snapshot.to_dict()
+
     written = write_annotation_packets(packets, args.out_dir)
     frozen_manifest = write_frozen_manifest(packets, args.out_dir)
     print(f"written_packets={len(written)}")
@@ -67,7 +82,7 @@ def main() -> int:
     print(
         "Fill content_atoms, immutable_details, required_qualifications, then set "
         "metadata.annotation_status to 'ready'. The frozen manifest prevents target, "
-        "instruction, split, genre, or provenance from changing after preparation."
+        "instruction, split, genre, provenance, or source snapshot from changing after preparation."
     )
     return 0
 
