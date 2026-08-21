@@ -19,7 +19,10 @@ from authorship_shift.corpus_pipeline import (
     validate_source_registry,
     write_annotation_packets,
 )
-from authorship_shift.source_snapshot import load_registry_snapshots
+from authorship_shift.source_snapshot import (
+    load_registry_snapshots,
+    snapshot_set_sha256,
+)
 
 
 def main() -> int:
@@ -78,6 +81,7 @@ def main() -> int:
     print(f"frozen_manifest={frozen_manifest}")
     print(f"split_strategy={report.split_strategy}")
     print(f"registry_split_sha256={report.registry_split_sha256}")
+    print(f"source_snapshot_set_sha256={snapshot_set_sha256(snapshots)}")
     print(f"out_dir={args.out_dir}")
     print(
         "Fill content_atoms, immutable_details, required_qualifications, then set "
