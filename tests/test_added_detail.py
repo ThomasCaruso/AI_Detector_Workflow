@@ -18,6 +18,12 @@ def test_added_name_detector_ignores_source_names_and_clause_initial_capitals():
     assert added_name_hits(source, candidate) == []
 
 
+def test_added_name_detector_does_not_treat_acronyms_as_names():
+    source = "Firms may fund uncertain research when rivalry raises the cost of delay."
+    candidate = "Firms may increase R&D when AI-related competition raises the cost of delay."
+    assert added_name_hits(source, candidate) == []
+
+
 def test_batch_gate_rejects_candidate_with_unsupported_added_name():
     source = "Competition can shorten development cycles when rivals raise the cost of delay."
     candidates = [
