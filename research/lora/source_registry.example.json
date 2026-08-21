@@ -18,7 +18,7 @@
         "artifact_kind": null,
         "revision_label": null
       },
-      "notes": "Template only; not approved training data. Approved public-domain/licensed sources require an exact-artifact snapshot."
+      "notes": "Template only; not approved training data. Every approved source requires an exact-artifact snapshot."
     },
     {
       "source_id": "example-user-owned-document-001",
@@ -31,8 +31,13 @@
       "author_or_agency": "User",
       "license": null,
       "document_locator": "Local document identifier",
-      "source_snapshot": null,
-      "notes": "Template only; not approved training data. Snapshotting user-owned material is optional but allowed."
+      "source_snapshot": {
+        "retrieved_at": null,
+        "sha256": null,
+        "artifact_kind": null,
+        "revision_label": null
+      },
+      "notes": "Template only; not approved training data. User-owned sources also require an exact-artifact snapshot before approval."
     }
   ]
 }
