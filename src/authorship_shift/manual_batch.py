@@ -83,7 +83,7 @@ def render_prompt(case: dict, profile_name: str, directive: str) -> str:
 ## Output requirements
 
 - Preserve every supplied fact, number, causal relationship, and qualification.
-- Refer to any organization, product, system, or person named in the source by that exact name at least once; do not refer to them only as "the company" or "the business".
+- If the locked facts name an organization, product, system, or person, use that exact name at least once rather than referring to it only as "the company" or "the business". Do not introduce any name that does not appear in the locked facts; if the locked facts name nobody, do not invent a name.
 - Do not invent evidence, quotations, experience, or additional factual claims.
 - {length_line}
 - Return only the finished prose; do not discuss the generation profile or these instructions.

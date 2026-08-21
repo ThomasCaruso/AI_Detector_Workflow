@@ -83,8 +83,22 @@ def test_render_prompt_requires_named_entities_to_be_named():
     """
 
     text = render_prompt(CASE, "constraint-first", "Open with the constraint.")
-    assert "by that exact name at least once" in text
-    assert 'do not refer to them only as "the company"' in text
+    assert "use that exact name at least once" in text
+    assert 'referring to it only as "the company"' in text
+
+
+def test_render_prompt_forbids_inventing_a_name():
+    """An unconditional naming demand made the model fabricate a subject.
+
+    technical_postmortem_001 names no organization, so the earlier wording sent
+    the model to the only proper noun in view -- the prompt's own document
+    header -- and it reported the outage as having happened to AuthorshipShift.
+    The requirement must be conditional on the locked facts naming someone.
+    """
+
+    text = render_prompt(CASE, "direct-plain", "Be plain.")
+    assert "Do not introduce any name that does not appear in the locked facts" in text
+    assert "if the locked facts name nobody, do not invent a name" in text
 
 
 def test_render_prompt_without_a_target_length():
