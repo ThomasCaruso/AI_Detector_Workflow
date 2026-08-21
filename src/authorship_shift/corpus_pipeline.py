@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Iterable
 
-from .lora_data import LoraExample, load_jsonl, parse_example, validate_dataset
+from .lora_data import LoraExample, parse_example, validate_dataset
 
 REGISTRY_SCHEMA_VERSION = 1
 RAW_SCHEMA_VERSION = 1
@@ -17,6 +19,17 @@ ALLOWED_PROVENANCE_KINDS = {"user_owned", "licensed", "public_domain", "consente
 DEFAULT_SPLIT_SEED = "authorship-shift-lora-v1"
 DEFAULT_TRAIN_FRACTION = 0.80
 DEFAULT_DEV_FRACTION = 0.10
+SPLIT_STRATEGY = "genre-stratified-hash-v1"
+LEGACY_SPLIT_STRATEGY = "independent-source-hash-v1"
+TARGET_SPLITS = ("train", "dev", "holdout")
+DEFAULT_TARGET_GENRES = (
+    "business_analysis",
+    "technical_explanation",
+    "science_summary",
+    "professional_writing",
+    "analytical_argument",
+)
+MIN_SOURCES_PER_GENRE = 3
 
 
 @dataclass(frozen=True)
@@ -78,6 +91,10 @@ class AnnotationPreparationReport:
     excerpt_count: int
     packet_count: int
     split_counts: dict[str, int]
+    source_split_counts: dict[str, int] = field(default_factory=dict)
+    genre_split_source_counts: dict[str, dict[str, int]] = field(default_factory=dict)
+    split_strategy: str = SPLIT_STRATEGY
+    registry_split_sha256: str | None = None
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -215,6 +232,16 @@ def load_raw_excerpts(path: str | Path) -> list[RawExcerpt]:
     return rows
 
 
+def _validate_split_fractions(train_fraction: float, dev_fraction: float) -> float:
+    if not (0.0 < train_fraction < 1.0):
+        raise ValueError("train_fraction must be between 0 and 1")
+    if not (0.0 < dev_fraction < 1.0):
+        raise ValueError("dev_fraction must be between 0 and 1")
+    if train_fraction + dev_fraction >= 1.0:
+        raise ValueError("train_fraction + dev_fraction must be below 1")
+    return 1.0 - train_fraction - dev_fraction
+
+
 def deterministic_split(
     source_id: str,
     *,
@@ -222,21 +249,16 @@ def deterministic_split(
     train_fraction: float = DEFAULT_TRAIN_FRACTION,
     dev_fraction: float = DEFAULT_DEV_FRACTION,
 ) -> str:
-    """Assign an entire source document to one split by stable hash.
+    """Legacy independent source-level split helper.
 
-    Split assignment depends only on ``seed`` and ``source_id``. Every excerpt
-    from a document therefore stays together, and annotation/model outcomes can
-    never influence whether that document becomes train, dev, or holdout data.
+    This remains useful for diagnostics and backward compatibility, but the
+    decision-grade corpus pipeline uses :func:`deterministic_stratified_splits`
+    so every target genre is represented in train, dev, and holdout.
     """
 
     if not source_id.strip():
         raise ValueError("source_id is required")
-    if not (0.0 < train_fraction < 1.0):
-        raise ValueError("train_fraction must be between 0 and 1")
-    if not (0.0 < dev_fraction < 1.0):
-        raise ValueError("dev_fraction must be between 0 and 1")
-    if train_fraction + dev_fraction >= 1.0:
-        raise ValueError("train_fraction + dev_fraction must be below 1")
+    _validate_split_fractions(train_fraction, dev_fraction)
 
     digest = hashlib.sha256(f"{seed}\0{source_id}".encode("utf-8")).digest()
     bucket = int.from_bytes(digest[:8], "big") / float(2**64)
@@ -247,11 +269,161 @@ def deterministic_split(
     return "holdout"
 
 
+def _minority_split_count(document_count: int, fraction: float) -> int:
+    """Round a minority split deterministically while reserving at least one source."""
+
+    return max(1, int(math.floor(document_count * fraction + 0.5)))
+
+
+def _stratified_rank(seed: str, genre: str, source_id: str) -> str:
+    return hashlib.sha256(f"{seed}\0{genre}\0{source_id}".encode("utf-8")).hexdigest()
+
+
+def deterministic_stratified_splits(
+    records: Iterable[SourceRecord],
+    *,
+    seed: str = DEFAULT_SPLIT_SEED,
+    train_fraction: float = DEFAULT_TRAIN_FRACTION,
+    dev_fraction: float = DEFAULT_DEV_FRACTION,
+    required_genres: Iterable[str] = DEFAULT_TARGET_GENRES,
+    require_genre_coverage: bool = True,
+) -> dict[str, str]:
+    """Assign approved source documents to deterministic genre-stratified splits.
+
+    Assignment is source-level and happens before annotation. Within each genre,
+    approved source IDs are hash-ranked using the frozen seed. The rank is then
+    partitioned into dev, holdout, and train quotas. Decision-grade preparation
+    reserves at least one source for dev and one for holdout in every required
+    genre, which requires at least three approved source documents per genre.
+
+    Because the ranking depends on the frozen registry as a whole, adding or
+    removing approved source documents is a new split contract and requires a
+    fresh annotation preparation rather than silently extending an existing one.
+    """
+
+    holdout_fraction = _validate_split_fractions(train_fraction, dev_fraction)
+    rows = [row for row in records if row.status == "approved"]
+    by_genre: dict[str, list[SourceRecord]] = defaultdict(list)
+    seen: set[str] = set()
+    for row in rows:
+        if row.source_id in seen:
+            raise ValueError(f"duplicate approved source_id {row.source_id!r}")
+        seen.add(row.source_id)
+        by_genre[row.genre].append(row)
+
+    required = tuple(dict.fromkeys(str(genre).strip() for genre in required_genres if str(genre).strip()))
+    if require_genre_coverage:
+        gaps = [
+            f"{genre}={len(by_genre.get(genre, []))}"
+            for genre in required
+            if len(by_genre.get(genre, [])) < MIN_SOURCES_PER_GENRE
+        ]
+        if gaps:
+            raise ValueError(
+                "decision-grade stratified split requires at least "
+                f"{MIN_SOURCES_PER_GENRE} approved source documents per target genre; "
+                + ", ".join(gaps)
+            )
+
+    assignments: dict[str, str] = {}
+    for genre in sorted(by_genre):
+        genre_rows = by_genre[genre]
+        document_count = len(genre_rows)
+        if document_count < MIN_SOURCES_PER_GENRE:
+            # Diagnostic-only fallback. The CLI exposes this only behind an
+            # explicit allow-incomplete flag; it is never decision-grade.
+            for row in genre_rows:
+                assignments[row.source_id] = deterministic_split(
+                    row.source_id,
+                    seed=seed,
+                    train_fraction=train_fraction,
+                    dev_fraction=dev_fraction,
+                )
+            continue
+
+        dev_count = _minority_split_count(document_count, dev_fraction)
+        holdout_count = _minority_split_count(document_count, holdout_fraction)
+        # Always retain at least one training source. With the default 80/10/10
+        # fractions and n>=3 this is already true, but keep the invariant explicit
+        # for configurable fractions.
+        while dev_count + holdout_count >= document_count:
+            if dev_count >= holdout_count and dev_count > 1:
+                dev_count -= 1
+            elif holdout_count > 1:
+                holdout_count -= 1
+            else:
+                raise ValueError(
+                    f"cannot allocate train/dev/holdout for genre {genre!r} with "
+                    f"{document_count} source documents and requested fractions"
+                )
+
+        ranked = sorted(
+            genre_rows,
+            key=lambda row: (_stratified_rank(seed, genre, row.source_id), row.source_id),
+        )
+        for row in ranked[:dev_count]:
+            assignments[row.source_id] = "dev"
+        for row in ranked[dev_count : dev_count + holdout_count]:
+            assignments[row.source_id] = "holdout"
+        for row in ranked[dev_count + holdout_count :]:
+            assignments[row.source_id] = "train"
+
+    return assignments
+
+
+def split_assignment_sha256(
+    records: Iterable[SourceRecord],
+    assignments: dict[str, str],
+    *,
+    seed: str = DEFAULT_SPLIT_SEED,
+) -> str:
+    """Fingerprint the exact registry-derived split contract."""
+
+    source_map = {row.source_id: row for row in records if row.status == "approved"}
+    payload = {
+        "strategy": SPLIT_STRATEGY,
+        "seed": seed,
+        "sources": [
+            {
+                "source_id": source_id,
+                "genre": source_map[source_id].genre,
+                "split": assignments[source_id],
+            }
+            for source_id in sorted(assignments)
+        ],
+    }
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _source_split_matrix(
+    records: Iterable[SourceRecord],
+    assignments: dict[str, str],
+) -> tuple[dict[str, int], dict[str, dict[str, int]]]:
+    source_map = {row.source_id: row for row in records if row.status == "approved"}
+    split_counts = {split: 0 for split in TARGET_SPLITS}
+    matrix: dict[str, dict[str, int]] = {}
+    for source_id, split in assignments.items():
+        split_counts[split] += 1
+        genre = source_map[source_id].genre
+        matrix.setdefault(genre, {name: 0 for name in TARGET_SPLITS})
+        matrix[genre][split] += 1
+    return split_counts, dict(sorted(matrix.items()))
+
+
 def prepare_annotation_packet(
     excerpt: RawExcerpt,
     source: SourceRecord,
     *,
     split_seed: str = DEFAULT_SPLIT_SEED,
+    assigned_split: str | None = None,
+    split_strategy: str | None = None,
+    registry_split_sha256: str | None = None,
 ) -> dict[str, Any]:
     if source.source_id != excerpt.source_id:
         raise ValueError(
@@ -266,7 +438,9 @@ def prepare_annotation_packet(
             f"{excerpt.id}: excerpt genre {excerpt.genre!r} does not match source genre {source.genre!r}"
         )
 
-    split = deterministic_split(source.source_id, seed=split_seed)
+    split = assigned_split or deterministic_split(source.source_id, seed=split_seed)
+    if split not in TARGET_SPLITS:
+        raise ValueError(f"{excerpt.id}: invalid assigned split {split!r}")
     metadata = dict(excerpt.metadata)
     metadata.update(
         {
@@ -276,9 +450,12 @@ def prepare_annotation_packet(
             "excerpt_locator": excerpt.excerpt_locator,
             "target_sha256": excerpt.target_sha256,
             "split_seed": split_seed,
+            "split_strategy": split_strategy or LEGACY_SPLIT_STRATEGY,
             "annotation_status": "pending",
         }
     )
+    if registry_split_sha256:
+        metadata["registry_split_sha256"] = registry_split_sha256
     return {
         "id": excerpt.id,
         "genre": excerpt.genre,
@@ -298,14 +475,42 @@ def prepare_annotation_packets(
     sources: Iterable[SourceRecord],
     *,
     split_seed: str = DEFAULT_SPLIT_SEED,
+    required_genres: Iterable[str] = DEFAULT_TARGET_GENRES,
+    require_genre_coverage: bool = True,
 ) -> tuple[list[dict[str, Any]], AnnotationPreparationReport]:
-    source_map = {row.source_id: row for row in sources}
+    source_rows = list(sources)
+    source_map = {row.source_id: row for row in source_rows}
     packets: list[dict[str, Any]] = []
     errors: list[str] = []
-    split_counts = {"train": 0, "dev": 0, "holdout": 0}
+    split_counts = {split: 0 for split in TARGET_SPLITS}
     seen_ids: set[str] = set()
-
     rows = list(excerpts)
+
+    try:
+        assignments = deterministic_stratified_splits(
+            source_rows,
+            seed=split_seed,
+            required_genres=required_genres,
+            require_genre_coverage=require_genre_coverage,
+        )
+    except ValueError as exc:
+        return [], AnnotationPreparationReport(
+            excerpt_count=len(rows),
+            packet_count=0,
+            split_counts=split_counts,
+            errors=[str(exc)],
+        )
+
+    source_split_counts, genre_split_source_counts = _source_split_matrix(
+        source_rows,
+        assignments,
+    )
+    registry_fingerprint = split_assignment_sha256(
+        source_rows,
+        assignments,
+        seed=split_seed,
+    )
+
     for excerpt in rows:
         if excerpt.id in seen_ids:
             errors.append(f"duplicate raw excerpt id {excerpt.id!r}")
@@ -317,8 +522,16 @@ def prepare_annotation_packets(
                 f"{excerpt.id}: source_id {excerpt.source_id!r} is absent from source registry"
             )
             continue
+        assigned_split = assignments.get(excerpt.source_id)
         try:
-            packet = prepare_annotation_packet(excerpt, source, split_seed=split_seed)
+            packet = prepare_annotation_packet(
+                excerpt,
+                source,
+                split_seed=split_seed,
+                assigned_split=assigned_split,
+                split_strategy=SPLIT_STRATEGY,
+                registry_split_sha256=registry_fingerprint,
+            )
         except ValueError as exc:
             errors.append(str(exc))
             continue
@@ -329,6 +542,10 @@ def prepare_annotation_packets(
         excerpt_count=len(rows),
         packet_count=len(packets),
         split_counts=split_counts,
+        source_split_counts=source_split_counts,
+        genre_split_source_counts=genre_split_source_counts,
+        split_strategy=SPLIT_STRATEGY,
+        registry_split_sha256=registry_fingerprint,
         errors=errors,
     )
 
@@ -354,6 +571,8 @@ def load_completed_annotations(path: str | Path) -> list[LoraExample]:
         raise FileNotFoundError(root)
     examples: list[LoraExample] = []
     for file_path in sorted(root.glob("*.json")):
+        if file_path.name.startswith("_"):
+            continue
         payload = json.loads(file_path.read_text(encoding="utf-8"))
         metadata = payload.get("metadata", {})
         if not isinstance(metadata, dict) or metadata.get("annotation_status") != "ready":
