@@ -197,27 +197,33 @@ def _immutable_pattern(item: str) -> re.Pattern[str]:
     return re.compile(left + re.escape(item) + right, re.IGNORECASE)
 
 
+def _integer_word_body(value: int) -> str | None:
+    """Return a regex body for an integer's ordinary English word form."""
+
+    if value in _SMALL_NUMBER_WORDS:
+        return re.escape(_SMALL_NUMBER_WORDS[value])
+    if value in _TENS_WORDS:
+        return re.escape(_TENS_WORDS[value])
+    if 20 < value < 100:
+        tens = (value // 10) * 10
+        ones = value % 10
+        return re.escape(_TENS_WORDS[tens]) + r"(?:-|\s+)" + re.escape(_SMALL_NUMBER_WORDS[ones])
+    return None
+
+
 def _integer_word_pattern(item: str) -> re.Pattern[str] | None:
     """Return a conservative word-form matcher for a bare integer immutable.
 
     Only unsigned bare integers from 0 through 99 are normalized. Currency,
-    percentages, decimals, multipliers, dates with punctuation, and units remain
-    exact-surface checks because spelling those out can change surrounding
-    semantics. Compound values accept either ``twenty-one`` or ``twenty one``.
+    decimals, multipliers, dates with punctuation, and units remain exact-surface
+    checks. Percentages have their own narrow equivalence rule below. Compound
+    values accept either ``twenty-one`` or ``twenty one``.
     """
 
     if not re.fullmatch(r"\d{1,2}", item):
         return None
-    value = int(item)
-    if value in _SMALL_NUMBER_WORDS:
-        body = re.escape(_SMALL_NUMBER_WORDS[value])
-    elif value in _TENS_WORDS:
-        body = re.escape(_TENS_WORDS[value])
-    elif 20 < value < 100:
-        tens = (value // 10) * 10
-        ones = value % 10
-        body = re.escape(_TENS_WORDS[tens]) + r"(?:-|\s+)" + re.escape(_SMALL_NUMBER_WORDS[ones])
-    else:
+    body = _integer_word_body(int(item))
+    if body is None:
         return None
     # Treat hyphenated compounds as a single lexical unit so ``nine`` does not
     # accidentally satisfy an immutable inside ``nine-year`` or similar text.
@@ -227,11 +233,39 @@ def _integer_word_pattern(item: str) -> re.Pattern[str] | None:
     )
 
 
+def _percentage_word_pattern(item: str) -> re.Pattern[str] | None:
+    """Match an integer percentage written with words instead of ``%``.
+
+    The rule is intentionally limited to unsigned integer percentages from 0 to
+    99. ``8%`` may match ``8 percent``, ``eight percent``, or ``eight per cent``.
+    It does not match ``8 percentage points`` because percent and percentage-point
+    changes are not generally interchangeable, and it does not normalize currency,
+    decimals, units, or multipliers.
+    """
+
+    match = re.fullmatch(r"(\d{1,2})%", item)
+    if match is None:
+        return None
+    value = int(match.group(1))
+    word_body = _integer_word_body(value)
+    if word_body is None:
+        return None
+    number_body = re.escape(str(value))
+    body = rf"(?:{number_body}|{word_body})\s+(?:percent|per\s+cent)"
+    return re.compile(
+        r"(?<![0-9A-Za-z_-])" + body + r"(?![0-9A-Za-z_-])",
+        re.IGNORECASE,
+    )
+
+
 def immutable_matches(candidate: str, item: str) -> bool:
     if _immutable_pattern(item).search(candidate) is not None:
         return True
-    word_pattern = _integer_word_pattern(item)
-    return word_pattern is not None and word_pattern.search(candidate) is not None
+    integer_word_pattern = _integer_word_pattern(item)
+    if integer_word_pattern is not None and integer_word_pattern.search(candidate) is not None:
+        return True
+    percentage_word_pattern = _percentage_word_pattern(item)
+    return percentage_word_pattern is not None and percentage_word_pattern.search(candidate) is not None
 
 
 def immutable_coverage(source: str, candidate: str) -> tuple[float, list[str]]:
