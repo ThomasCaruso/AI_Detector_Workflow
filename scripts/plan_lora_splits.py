@@ -13,12 +13,14 @@ if str(SRC) not in sys.path:
 from authorship_shift.corpus_pipeline import (
     DEFAULT_SPLIT_SEED,
     DEFAULT_TARGET_GENRES,
+    SPLIT_STRATEGY,
     TARGET_SPLITS,
     deterministic_stratified_splits,
     load_source_registry,
     split_assignment_sha256,
     validate_source_registry,
 )
+from authorship_shift.registry_preview import planning_source_records
 
 
 def main() -> int:
@@ -27,6 +29,15 @@ def main() -> int:
     )
     parser.add_argument("source_registry", type=Path)
     parser.add_argument("--split-seed", default=DEFAULT_SPLIT_SEED)
+    parser.add_argument(
+        "--include-candidates",
+        action="store_true",
+        help=(
+            "Planning-only preview: temporarily treat candidate sources as eligible for "
+            "split assignment without changing their registry status. Annotation and "
+            "training still require approved sources."
+        ),
+    )
     parser.add_argument(
         "--allow-incomplete-genre-coverage",
         action="store_true",
@@ -41,48 +52,71 @@ def main() -> int:
         print(json.dumps(registry_report.to_dict(), indent=2))
         return 2
 
+    planning_sources, promoted_candidates = planning_source_records(
+        sources,
+        include_candidates=args.include_candidates,
+    )
     try:
         assignments = deterministic_stratified_splits(
-            sources,
+            planning_sources,
             seed=args.split_seed,
             require_genre_coverage=not args.allow_incomplete_genre_coverage,
         )
     except ValueError as exc:
         payload = {
             "valid": False,
+            "planning_mode": "candidate_preview" if args.include_candidates else "approved_only",
             "split_seed": args.split_seed,
             "error": str(exc),
         }
         print(json.dumps(payload, indent=2))
         return 3
 
-    approved = {row.source_id: row for row in sources if row.status == "approved"}
+    eligible = {
+        row.source_id: row
+        for row in planning_sources
+        if row.status == "approved"
+    }
     matrix = {
         genre: {split: 0 for split in TARGET_SPLITS}
         for genre in DEFAULT_TARGET_GENRES
     }
     extra_genres: dict[str, dict[str, int]] = {}
     for source_id, split in assignments.items():
-        genre = approved[source_id].genre
+        genre = eligible[source_id].genre
         if genre not in matrix:
             extra_genres.setdefault(genre, {name: 0 for name in TARGET_SPLITS})
             extra_genres[genre][split] += 1
         else:
             matrix[genre][split] += 1
 
+    fingerprint = split_assignment_sha256(
+        planning_sources,
+        assignments,
+        seed=args.split_seed,
+    )
+    preview = bool(promoted_candidates)
     payload = {
         "valid": True,
+        "planning_mode": "candidate_preview" if preview else "approved_only",
         "split_seed": args.split_seed,
-        "split_strategy": "genre-stratified-hash-v1",
-        "registry_split_sha256": split_assignment_sha256(
-            sources,
-            assignments,
-            seed=args.split_seed,
-        ),
-        "approved_sources": len(assignments),
+        "split_strategy": SPLIT_STRATEGY,
+        "registry_split_sha256": None if preview else fingerprint,
+        "preview_split_sha256": fingerprint if preview else None,
+        "approved_sources": sum(1 for row in sources if row.status == "approved"),
+        "candidate_sources_in_preview": len(promoted_candidates),
+        "promoted_candidate_source_ids": promoted_candidates,
+        "eligible_planning_sources": len(assignments),
         "target_genre_source_matrix": matrix,
         "extra_genre_source_matrix": extra_genres,
         "assignments": dict(sorted(assignments.items())),
+        "warning": (
+            "Preview only: candidate sources remain unapproved. This fingerprint is not a "
+            "frozen training split contract; run again without --include-candidates after "
+            "rights review and approval."
+            if preview
+            else None
+        ),
     }
     print(json.dumps(payload, indent=2))
     if args.json_out:
