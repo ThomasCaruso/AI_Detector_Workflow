@@ -46,6 +46,10 @@ def build_candidate_registry_payload(
     remains ``status=candidate`` and therefore cannot enter annotation or training
     until the exact document's rights basis is reviewed and the field is verified
     or replaced.
+
+    Generated ``source_id`` values are slot identifiers only. When a real document
+    is chosen, replace the placeholder ID with a stable document-specific ID so the
+    split fingerprint tracks document identity rather than an abstract slot.
     """
 
     if slots_per_genre < 3:
@@ -75,9 +79,10 @@ def build_candidate_registry_payload(
                     "license": None,
                     "document_locator": None,
                     "notes": (
-                        "Placeholder slot only. Verify or replace provenance_kind, then fill "
-                        "the exact title, URL/locator, rights basis, and third-party-material "
-                        "review before changing status to approved."
+                        "Placeholder slot only. Replace source_id with a stable ID for the "
+                        "exact document; verify or replace provenance_kind; then fill title, "
+                        "URL/locator, rights basis, and third-party-material review before "
+                        "changing status to approved."
                     ),
                 }
             )
@@ -85,8 +90,8 @@ def build_candidate_registry_payload(
         "schema_version": 1,
         "template_note": (
             f"{len(sources)} candidate slots: {slots_per_genre} per target genre. "
-            "All records are intentionally unapproved. provenance_kind is provisional "
-            "until document-level rights review."
+            "All records are intentionally unapproved. source_id and provenance_kind are "
+            "placeholders until exact-document selection and rights review."
         ),
         "sources": sources,
     }
