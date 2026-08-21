@@ -63,7 +63,7 @@ def test_partial_suite_can_never_recommend_training():
     guarded = apply_final_verdict_guard(report)
     assert guarded.verdict.key == VERDICT_INSUFFICIENT
     assert "LoRA" not in guarded.verdict.next_step
-    assert "partial suite" in guarded.verdict.next_step.lower()
+    assert "remaining independent generations" in guarded.verdict.next_step
 
 
 def test_vacuous_and_gate_failing_domains_do_not_vote():
