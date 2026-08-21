@@ -11,7 +11,12 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from authorship_shift.annotation_integrity import verify_frozen_manifest
-from authorship_shift.corpus_pipeline import load_completed_annotations, write_training_jsonl
+from authorship_shift.corpus_audit import genre_split_coverage
+from authorship_shift.corpus_pipeline import (
+    DEFAULT_TARGET_GENRES,
+    load_completed_annotations,
+    write_training_jsonl,
+)
 from authorship_shift.lora_data import validate_dataset
 
 
@@ -24,7 +29,10 @@ def main() -> int:
     parser.add_argument(
         "--require-trainable",
         action="store_true",
-        help="Require non-empty train, dev, and holdout splits before writing.",
+        help=(
+            "Require non-empty train/dev/holdout globally and for every target genre "
+            "before writing a decision-grade corpus."
+        ),
     )
     args = parser.parse_args()
 
@@ -43,6 +51,14 @@ def main() -> int:
         missing = [split for split, count in report.split_counts.items() if count == 0]
         if missing:
             print(f"missing_required_splits={','.join(missing)}")
+            return 3
+
+        _, _, missing_genre_splits = genre_split_coverage(
+            examples,
+            expected_genres=DEFAULT_TARGET_GENRES,
+        )
+        if missing_genre_splits:
+            print("missing_required_genre_splits=" + ",".join(missing_genre_splits))
             return 3
 
     write_training_jsonl(examples, args.out_jsonl)
