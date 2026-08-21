@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "name": "qwen3-8b-qlora-pilot",
+  "base_model": "Qwen/Qwen3-8B",
+  "output_dir": "artifacts/lora/qwen3-8b-pilot",
+  "training": {
+    "max_length": 2048,
+    "learning_rate": 0.0002,
+    "num_train_epochs": 2.0,
+    "per_device_train_batch_size": 1,
+    "per_device_eval_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "gradient_checkpointing": true,
+    "seed": 20260821
+  },
+  "quantization": {
+    "load_in_4bit": true,
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": true
+  },
+  "lora": {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "target_modules": "all-linear",
+    "bias": "none",
+    "task_type": "CAUSAL_LM"
+  },
+  "objective": {
+    "completion_only_loss": true,
+    "train_on_semantic_plan_to_target": true,
+    "commercial_detector_objective": false
+  }
+}
