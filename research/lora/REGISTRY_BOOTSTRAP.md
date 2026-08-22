@@ -53,12 +53,19 @@ For each slot, fill:
 - author/agency;
 - candidate provenance kind;
 - license/public-domain status where applicable;
-- document locator such as report number, DOI, page range, or file identifier;
+- observed artifact locator such as exact PDF URL/filename, report number, DOI, or local file identifier;
 - notes about third-party material, distinct authorial voices, or sections to exclude.
 
 Keep `status: candidate` during this stage.
 
-Before spending annotation effort, inspect the document for **excerpt viability**. The first corpus prefers sustained 80-500 word prose; a document dominated by tables, bullets, captions, or boilerplate may be rights-clean but still be a poor training source. As a working target, look for roughly 3-5 independent usable passages per document.
+Before spending annotation effort, inspect the exact artifact for **excerpt viability**. Passage yield is empirical rather than fixed. The first frozen CBO business source yielded at least 11 clean 80-500-word blocks, so the earlier 3-5-per-document assumption is retired.
+
+The first adapter pilot instead uses two asymmetric per-genre constraints:
+
+- **hard structural floor:** at least 6 independent approved documents;
+- **provisional volume target:** at least 25 clean passages.
+
+High passage yield never substitutes for independent documents. The volume target may be revised after multiple source pools and genres are audited.
 
 Rights-clean and style-clean are separate checks. Reproduced agency comment letters, contractor appendices, quotations, or other sections written in a different voice should not be absorbed into the host document's style corpus merely because their rights are clear.
 
@@ -66,13 +73,13 @@ After each meaningful registry change, rerun the candidate preview. A document r
 
 ## 4. Review rights and freeze the exact artifact
 
-Only change a source to `status: approved` after the exact document has been reviewed. Agency-level policy is evidence, not blanket approval for every paragraph hosted by that agency.
+Agency-level policy is evidence, not blanket approval for every paragraph hosted by that agency. Review the exact document and the sections intended for the corpus.
 
-Every approved source also requires an exact-artifact snapshot. Download or otherwise freeze the file actually reviewed, then hash it locally:
+Every eventual approved source requires an exact-artifact snapshot. Download or otherwise freeze the file actually reviewed, then hash it locally:
 
 ```bash
 python scripts/hash_source_artifact.py \
-  research/lora/local_corpus/sources/example.pdf \
+  research/lora/local_corpus/artifacts/example.pdf \
   --artifact-kind pdf \
   --revision-label "optional published revision label"
 ```
@@ -83,9 +90,42 @@ For externally sourced public-domain/licensed documents, approval still separate
 
 Quoted third-party passages, contractor-authored sections, figures, tables, photographs, and reproduced material require separate attention. Exclude material whose rights basis or authorship suitability is unclear.
 
-## 5. Freeze the approved split and source-version contracts
+## 5. Freeze canonical text for PDFs
 
-Once all intended documents are reviewed, snapshotted, and approved, run the planner **without** candidate preview:
+A PDF hash pins bytes, not extracted prose. Before a PDF can enter the decision-grade approved split plan, create the canonical text derivation described in `CORPUS_PIPELINE.md`.
+
+Install the pinned extractor:
+
+```bash
+pip install -r research/lora/extraction-requirements.txt
+```
+
+Extract the exact frozen artifact:
+
+```bash
+python scripts/extract_source_text.py \
+  research/lora/local_corpus/artifacts/example.pdf \
+  research/lora/local_corpus/extracted/example.canonical.json \
+  --source-id example-source-id
+```
+
+Inspect extraction artifacts. Safe source-agnostic normalization is automatic, but ambiguous de-hyphenation or intra-word-space repair must be recorded in a reviewed correction ledger. Use:
+
+```bash
+python scripts/init_text_corrections.py \
+  research/lora/local_corpus/extracted/example.canonical.json \
+  research/lora/local_corpus/extracted/example.corrections.json
+```
+
+After adding reviewed page-scoped replacements, rerun `extract_source_text.py --corrections ...` and populate `source_text_derivation` in the local registry with the resulting extractor/version, base-text hash, correction hash, canonical-text hash, and registry-relative canonical-text path.
+
+The canonical extraction and correction files stay gitignored. Their hashes become the reviewable contract.
+
+## 6. Approve and freeze the decision-grade split contract
+
+Only change a source to `status: approved` after its rights/authorship review, exact-artifact snapshot, and—when the artifact is a PDF—canonical text derivation are complete.
+
+Once the intended sources meet those conditions, run the planner **without** candidate preview:
 
 ```bash
 python scripts/plan_lora_splits.py \
@@ -93,16 +133,20 @@ python scripts/plan_lora_splits.py \
   --json-out research/lora/local_corpus/split_plan.json
 ```
 
-This is the decision-grade plan. It requires at least three approved source documents in every target genre and emits two independent fingerprints:
+Candidate preview is intentionally permissive. Approved-only planning is not: it validates exact source snapshots and requires a locally verifiable canonical text derivation for every approved PDF before issuing the real split fingerprint.
+
+The splitter's code-level minimum is three approved source documents in every target genre. The first real adapter pilot imposes the stricter research floor of six independent approved documents per genre.
+
+The plan emits independent artifact and split evidence:
 
 - `registry_split_sha256` — exact document identities and split assignments;
 - `source_snapshot_set_sha256` — exact reviewed artifact versions.
 
-Changing a document version while retaining the same `source_id` changes the source-snapshot fingerprint even if the split assignment remains identical.
+Changing a document version while retaining the same `source_id` changes the source-snapshot fingerprint even if the split assignment remains identical. Changing the PDF extraction/correction contract prevents decision-grade planning or annotation until the registry and local canonical text agree again.
 
-Do not start excerpt annotation against a candidate preview. Begin annotation only after the approved registry, split fingerprint, and source snapshot fingerprint are stable.
+Do not start excerpt annotation against a candidate preview. Begin annotation only after the approved registry, split fingerprint, source snapshot fingerprint, and PDF canonical-text derivations are stable.
 
-## 6. Then collect excerpts
+## 7. Then collect excerpts
 
 Once the approved contracts are frozen, proceed with `CORPUS_PIPELINE.md`:
 
@@ -113,4 +157,4 @@ python scripts/prepare_lora_annotations.py \
   research/lora/annotations
 ```
 
-Annotation preparation recomputes the registry-derived split assignment, validates every approved source snapshot, copies the source snapshot into packet metadata, and freezes it alongside target/provenance fields.
+For PDF sources, raw `target_text` must come from canonical text. Annotation preparation permits whitespace-only reflow but rejects character-level edits that are absent from the reviewed correction ledger. It copies both the source snapshot and text-derivation contract into packet metadata and freezes them alongside target/provenance fields.
