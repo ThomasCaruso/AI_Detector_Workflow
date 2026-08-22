@@ -1,0 +1,3 @@
+# Canonical corpus PDF extraction environment.
+# Keep separate from the lightweight AuthorshipShift runtime.
+pypdf==6.15.0
