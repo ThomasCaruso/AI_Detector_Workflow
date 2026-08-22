@@ -25,6 +25,7 @@ from authorship_shift.source_snapshot import (
     load_registry_snapshots,
     snapshot_set_sha256,
 )
+from authorship_shift.text_derivation import load_registry_text_derivations
 
 
 def main() -> int:
@@ -69,6 +70,27 @@ def main() -> int:
         sources,
         include_candidates=args.include_candidates,
     )
+    preview = bool(promoted_candidates)
+
+    # Candidate preview remains intentionally permissive. The real approved-only
+    # split contract is stricter: every approved PDF must already have a frozen,
+    # locally verifiable canonical text derivation so extraction failure cannot
+    # invalidate the split after the decision-grade fingerprint is issued.
+    derivation_count = 0
+    if not preview:
+        derivations, _, derivation_errors = load_registry_text_derivations(
+            args.source_registry
+        )
+        if derivation_errors:
+            print(
+                json.dumps(
+                    {"valid": False, "text_derivation_errors": derivation_errors},
+                    indent=2,
+                )
+            )
+            return 2
+        derivation_count = len(derivations)
+
     try:
         assignments = deterministic_stratified_splits(
             planning_sources,
@@ -108,7 +130,6 @@ def main() -> int:
         assignments,
         seed=args.split_seed,
     )
-    preview = bool(promoted_candidates)
     payload = {
         "valid": True,
         "planning_mode": "candidate_preview" if preview else "approved_only",
@@ -118,6 +139,7 @@ def main() -> int:
         "preview_split_sha256": fingerprint if preview else None,
         "source_snapshot_set_sha256": snapshot_set_sha256(snapshots),
         "snapshotted_approved_sources": len(snapshots),
+        "text_derivations": derivation_count if not preview else None,
         "approved_sources": sum(1 for row in sources if row.status == "approved"),
         "candidate_sources_in_preview": len(promoted_candidates),
         "promoted_candidate_source_ids": promoted_candidates,
@@ -128,7 +150,7 @@ def main() -> int:
         "warning": (
             "Preview only: candidate sources remain unapproved. This fingerprint is not a "
             "frozen training split contract; run again without --include-candidates after "
-            "rights review, exact-artifact snapshotting, and approval."
+            "rights review, exact-artifact snapshotting, canonical text derivation, and approval."
             if preview
             else None
         ),
