@@ -52,6 +52,12 @@ For revised documents, record the exact revision label when one is published. Th
 canonical URL can remain stable while the underlying document changes; the SHA-256
 is what freezes the reviewed artifact state.
 
+`document_locator` should record the **observed** artifact URL/filename, DOI/report
+number, or stable local locator used during review. Do not construct a PDF URL or
+artifact filename from a publication number merely because a source site often
+follows that pattern. Home-page IDs, HTML document-node IDs, and downloadable
+artifact names are separate identifiers unless the exact source proves otherwise.
+
 The initial adapter experiment has five target genres:
 
 ```text
