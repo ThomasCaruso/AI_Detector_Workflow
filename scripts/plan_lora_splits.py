@@ -16,10 +16,10 @@ from authorship_shift.corpus_pipeline import (
     SPLIT_STRATEGY,
     TARGET_SPLITS,
     deterministic_stratified_splits,
-    load_source_registry,
     split_assignment_sha256,
     validate_source_registry,
 )
+from authorship_shift.registry_io import load_source_registry_safe
 from authorship_shift.registry_preview import planning_source_records
 from authorship_shift.source_snapshot import (
     load_registry_snapshots,
@@ -55,7 +55,11 @@ def main() -> int:
         print(json.dumps({"valid": False, "source_snapshot_errors": snapshot_errors}, indent=2))
         return 2
 
-    sources = load_source_registry(args.source_registry)
+    sources, registry_parse_errors = load_source_registry_safe(args.source_registry)
+    if registry_parse_errors:
+        print(json.dumps({"valid": False, "registry_parse_errors": registry_parse_errors}, indent=2))
+        return 2
+
     registry_report = validate_source_registry(sources)
     if not registry_report.valid:
         print(json.dumps(registry_report.to_dict(), indent=2))
