@@ -72,6 +72,23 @@ def test_valid_snapshot_is_normalized_and_revision_is_optional():
     assert parsed.artifact_kind == "pdf"
     assert parsed.revision_label == "Published Apr 23, 2026"
 
+    no_revision = _snapshot()
+    no_revision["revision_label"] = None
+    parsed_null = parse_source_snapshot(no_revision, source_id="source-1")
+    assert parsed_null.revision_label is None
+    assert parsed_null.to_dict()["revision_label"] is None
+
+
+def test_snapshot_loader_accepts_utf8_bom(tmp_path):
+    path = tmp_path / "registry.json"
+    path.write_text(
+        "\ufeff" + json.dumps(_registry(_source(snapshot=_snapshot()))),
+        encoding="utf-8",
+    )
+    snapshots, errors = load_registry_snapshots(path)
+    assert errors == []
+    assert snapshots["source-1"].sha256 == "a" * 64
+
 
 def test_bad_snapshot_hash_and_timestamp_are_rejected(tmp_path):
     bad = _snapshot()
