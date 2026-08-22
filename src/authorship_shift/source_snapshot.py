@@ -54,7 +54,9 @@ def parse_source_snapshot(payload: Any, *, source_id: str) -> SourceSnapshot:
         raise ValueError(
             f"{source_id}: source_snapshot.artifact_kind must be one of {sorted(ALLOWED_ARTIFACT_KINDS)}"
         )
-    revision = str(payload.get("revision_label", "")).strip() or None
+    revision_value = payload.get("revision_label")
+    revision = str(revision_value).strip() if revision_value is not None else None
+    revision = revision or None
     return SourceSnapshot(
         retrieved_at=retrieved_at,
         sha256=digest.lower(),
