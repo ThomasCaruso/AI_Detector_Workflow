@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
-FROZEN_MANIFEST_SCHEMA_VERSION = 2
+FROZEN_MANIFEST_SCHEMA_VERSION = 3
 FROZEN_MANIFEST_NAME = "_frozen_manifest.json"
 
 
@@ -14,6 +14,9 @@ def frozen_packet_payload(packet: dict[str, Any]) -> dict[str, Any]:
 
     metadata = packet.get("metadata")
     source_snapshot = metadata.get("source_snapshot") if isinstance(metadata, dict) else None
+    source_text_derivation = (
+        metadata.get("source_text_derivation") if isinstance(metadata, dict) else None
+    )
     return {
         "id": packet.get("id"),
         "genre": packet.get("genre"),
@@ -22,6 +25,7 @@ def frozen_packet_payload(packet: dict[str, Any]) -> dict[str, Any]:
         "target_text": packet.get("target_text"),
         "provenance": packet.get("provenance"),
         "source_snapshot": source_snapshot,
+        "source_text_derivation": source_text_derivation,
     }
 
 
@@ -55,6 +59,7 @@ def build_frozen_manifest(packets: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "target_text",
             "provenance",
             "metadata.source_snapshot",
+            "metadata.source_text_derivation",
         ],
         "packets": fingerprints,
     }
