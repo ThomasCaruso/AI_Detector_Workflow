@@ -18,7 +18,8 @@
         "artifact_kind": null,
         "revision_label": null
       },
-      "notes": "Template only; not approved training data. Every approved source requires an exact-artifact snapshot."
+      "source_text_derivation": null,
+      "notes": "Template only; not approved training data. Every approved source requires an exact-artifact snapshot, and approved PDFs require a canonical text derivation before annotation."
     },
     {
       "source_id": "example-user-owned-document-001",
@@ -37,6 +38,7 @@
         "artifact_kind": null,
         "revision_label": null
       },
+      "source_text_derivation": null,
       "notes": "Template only; not approved training data. User-owned sources also require an exact-artifact snapshot before approval."
     }
   ]
