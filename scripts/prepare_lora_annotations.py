@@ -14,11 +14,11 @@ from authorship_shift.annotation_integrity import write_frozen_manifest
 from authorship_shift.corpus_pipeline import (
     DEFAULT_SPLIT_SEED,
     load_raw_excerpts,
-    load_source_registry,
     prepare_annotation_packets,
     validate_source_registry,
     write_annotation_packets,
 )
+from authorship_shift.registry_io import load_source_registry_safe
 from authorship_shift.source_snapshot import (
     load_registry_snapshots,
     snapshot_set_sha256,
@@ -49,13 +49,22 @@ def main() -> int:
         print(json.dumps({"source_snapshot_valid": False, "errors": snapshot_errors}, indent=2))
         return 2
 
-    sources = load_source_registry(args.source_registry)
+    sources, registry_parse_errors = load_source_registry_safe(args.source_registry)
+    if registry_parse_errors:
+        print(json.dumps({"valid": False, "registry_parse_errors": registry_parse_errors}, indent=2))
+        return 2
+
     registry_report = validate_source_registry(sources)
     if not registry_report.valid:
         print(json.dumps(registry_report.to_dict(), indent=2))
         return 2
 
-    excerpts = load_raw_excerpts(args.raw_jsonl)
+    try:
+        excerpts = load_raw_excerpts(args.raw_jsonl)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(json.dumps({"valid": False, "raw_excerpt_errors": [str(exc)]}, indent=2))
+        return 2
+
     packets, report = prepare_annotation_packets(
         excerpts,
         sources,
