@@ -85,7 +85,11 @@ def load_registry_snapshots(path: str | Path) -> tuple[dict[str, SourceSnapshot]
     and rejected records may keep the generated all-null snapshot placeholder.
     """
 
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        return {}, [f"source registry could not be read: {exc}"]
+
     rows = payload.get("sources", []) if isinstance(payload, dict) else []
     if not isinstance(rows, list):
         return {}, ["source registry requires a sources list"]
