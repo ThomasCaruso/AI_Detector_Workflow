@@ -64,6 +64,37 @@ def test_reviewed_correction_refuses_drift():
         raise AssertionError("correction ledger must fail if source text drifted")
 
 
+def _apply_one(replacement, text="T reasury and T reasury"):
+    pages = [PageText(1, text)]
+    payload = {
+        "schema_version": 1,
+        "artifact_sha256": "a" * 64,
+        "base_text_sha256": pages_sha256(pages),
+        "replacements": [replacement],
+    }
+    return apply_reviewed_corrections(pages, payload, artifact_sha256="a" * 64)
+
+
+def test_expected_count_is_required_never_defaulted():
+    # Two occurrences are present. If expected_count silently defaulted to 1,
+    # this would "succeed" while correcting only half the page.
+    try:
+        _apply_one({"page": 1, "old": "T reasury", "new": "Treasury"})
+    except ValueError as exc:
+        assert "expected_count is required" in str(exc)
+    else:
+        raise AssertionError("expected_count must never be inferred by default")
+
+
+def test_mistyped_count_key_is_rejected_not_ignored():
+    try:
+        _apply_one({"page": 1, "old": "T reasury", "new": "Treasury", "count": 2})
+    except ValueError as exc:
+        assert "unknown key(s) count" in str(exc)
+    else:
+        raise AssertionError("a mistyped key must fail loudly, not fall back to a default")
+
+
 def test_target_may_reflow_whitespace_but_not_change_characters():
     pages = [PageText(1, "The federal government supports\nsome private activities.")]
     assert canonical_text_contains(

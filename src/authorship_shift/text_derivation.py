@@ -119,6 +119,9 @@ def pages_sha256(pages: Iterable[PageText]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+CORRECTION_KEYS = frozenset({"page", "old", "new", "expected_count", "reason"})
+
+
 def corrections_sha256(payload: dict[str, Any]) -> str:
     semantic = {
         "schema_version": payload.get("schema_version"),
@@ -169,13 +172,26 @@ def apply_reviewed_corrections(
             raise ValueError(f"correction {index}: page must be an integer") from exc
         if page_number not in page_map:
             raise ValueError(f"correction {index}: page {page_number} is absent")
+        unknown = sorted(set(replacement) - CORRECTION_KEYS)
+        if unknown:
+            raise ValueError(
+                f"correction {index}: unknown key(s) {', '.join(unknown)}; "
+                f"allowed keys are {', '.join(sorted(CORRECTION_KEYS))}"
+            )
         old = str(replacement.get("old", ""))
         new = str(replacement.get("new", ""))
         if not old:
             raise ValueError(f"correction {index}: old text is required")
         if old == new:
             raise ValueError(f"correction {index}: no-op replacement is not allowed")
-        expected_count = int(replacement.get("expected_count", 1))
+        # Required, never defaulted: a reviewer must state how many occurrences
+        # they checked, so a mistyped field cannot silently weaken the check.
+        try:
+            expected_count = int(replacement["expected_count"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"correction {index}: expected_count is required and must be an integer"
+            ) from exc
         if expected_count < 1:
             raise ValueError(f"correction {index}: expected_count must be at least 1")
         actual_count = page_map[page_number].count(old)
