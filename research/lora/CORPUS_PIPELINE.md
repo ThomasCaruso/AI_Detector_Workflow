@@ -74,14 +74,138 @@ seed and the complete approved registry. Adding or removing an approved source i
 therefore a new split contract, not an incremental edit to an existing annotation
 set.
 
-Decision-grade preparation requires at least **three approved source documents per
-target genre** so every genre can have a source-level train, dev, and holdout cell.
-For the intended 30-50 document bootstrap, aim for roughly 6-10 independently
-sourced documents per genre rather than relying on the three-document minimum.
+The splitter's technical minimum is three approved source documents per genre, which
+is enough to create one train, one dev, and one holdout source. The first real
+adapter pilot uses a stricter **hard structural floor of at least six independent
+approved documents per genre**. No number of additional excerpts from one document
+substitutes for document independence.
 
 See `SOURCE_POOLS.md` for bootstrap source pools and their rights-policy links.
 
-## 2. Create raw excerpt JSONL locally
+## 2. Canonically derive text from frozen PDF artifacts
+
+A frozen PDF hash does not by itself determine `target_text`. PDF text extraction
+can vary by extractor/version and can introduce artifacts such as ligatures,
+intra-word spacing, and visual-line hyphenation. Therefore an approved PDF must
+have a frozen `source_text_derivation` before annotation packets can be created.
+
+The first canonical PDF recipe is:
+
+```text
+extractor_name       = pypdf
+extractor_version    = 6.15.0
+extraction_mode      = plain
+normalization_version = pdf-text-v1
+```
+
+Install the isolated extraction dependency:
+
+```bash
+pip install -r research/lora/extraction-requirements.txt
+```
+
+Run a base extraction from the exact hashed artifact:
+
+```bash
+python scripts/extract_source_text.py \
+  research/lora/local_corpus/artifacts/62265-federal-credit-programs.pdf \
+  research/lora/local_corpus/extracted/cbo-62265.canonical.json \
+  --source-id cbo-62265
+```
+
+`pdf-text-v1` performs only source-agnostic cleanup:
+
+- normalize line endings;
+- expand standard Unicode presentation ligatures such as `ﬀ -> ff`;
+- normalize Unicode spacing characters/tabs to normal spaces;
+- collapse repeated horizontal spaces and remove trailing spaces.
+
+It deliberately does **not** guess ambiguous repairs. In particular, it does not
+silently turn `T reasury` into `Treasury` or `guar-\nantees` into `guarantees`.
+Those changes may be correct for one PDF and wrong for another.
+
+If the base extraction contains such artifacts, create a reviewed correction
+ledger:
+
+```bash
+python scripts/init_text_corrections.py \
+  research/lora/local_corpus/extracted/cbo-62265.canonical.json \
+  research/lora/local_corpus/extracted/cbo-62265.corrections.json
+```
+
+Then add page-scoped exact replacements, for example:
+
+```json
+{
+  "schema_version": 1,
+  "artifact_sha256": "<frozen PDF SHA-256>",
+  "base_text_sha256": "<base extraction SHA-256>",
+  "replacements": [
+    {
+      "page": 2,
+      "old": "T reasury",
+      "new": "Treasury",
+      "expected_count": 1
+    },
+    {
+      "page": 3,
+      "old": "guar-\nantees",
+      "new": "guarantees",
+      "expected_count": 1
+    }
+  ]
+}
+```
+
+Re-run extraction with the ledger:
+
+```bash
+python scripts/extract_source_text.py \
+  research/lora/local_corpus/artifacts/62265-federal-credit-programs.pdf \
+  research/lora/local_corpus/extracted/cbo-62265.canonical.json \
+  --source-id cbo-62265 \
+  --corrections research/lora/local_corpus/extracted/cbo-62265.corrections.json
+```
+
+The correction ledger is bound to both the artifact SHA-256 and the base extracted
+text SHA-256. Every replacement is page-scoped and carries an expected occurrence
+count, so extraction drift causes a hard failure instead of applying a patch to the
+wrong text.
+
+Populate the local registry with the resulting contract:
+
+```json
+"source_text_derivation": {
+  "artifact_sha256": "<same SHA-256 as source_snapshot>",
+  "extractor_name": "pypdf",
+  "extractor_version": "6.15.0",
+  "extraction_mode": "plain",
+  "normalization_version": "pdf-text-v1",
+  "base_text_sha256": "<from extract_source_text.py>",
+  "corrections_sha256": "<hash or null>",
+  "canonical_text_sha256": "<from extract_source_text.py>",
+  "canonical_text_path": "extracted/cbo-62265.canonical.json"
+}
+```
+
+`canonical_text_path` is relative to the local registry directory. Canonical text
+and correction ledgers remain under `research/lora/local_corpus/` and are not
+committed.
+
+Annotation preparation verifies that:
+
+1. the derivation references the same PDF SHA-256 as `source_snapshot`;
+2. extractor/version/mode/normalization match the frozen recipe;
+3. the local canonical file hashes to the recorded `canonical_text_sha256`;
+4. each raw `target_text` is a substring of canonical text after **whitespace-only
+   reflow**.
+
+Character-level cleanup outside the reviewed correction ledger is rejected. The
+frozen annotation manifest includes the text-derivation contract, so changing the
+extractor version, correction hash, or canonical-text hash after preparation
+invalidates the packet.
+
+## 3. Create raw excerpt JSONL locally
 
 Raw text is gitignored. One line per excerpt:
 
@@ -91,9 +215,12 @@ Raw text is gitignored. One line per excerpt:
 
 Rules:
 
-- `target_text` is copied exactly from the approved human source except for
-  mechanical whitespace normalization;
-- do not improve, simplify, paraphrase, or clean its style;
+- for PDF sources, copy `target_text` from the frozen canonical extraction, with
+  whitespace-only reflow permitted;
+- do not independently de-hyphenate, repair extraction artifacts, improve,
+  simplify, paraphrase, or clean the target text;
+- if the canonical extraction is wrong, fix the reviewed correction ledger,
+  regenerate canonical text, and update its hashes **before** creating packets;
 - keep enough surrounding context in `excerpt_locator` to audit the excerpt;
 - exclude quotations or sections written by a different authorial voice unless
   that voice is intentionally registered as its own source, even when rights are
@@ -102,13 +229,19 @@ Rules:
   descriptions;
 - prefer sustained prose of roughly 80-500 words for the first corpus.
 
-Before committing a source slot, test excerpt viability. A rights-clean document
-that yields only one short usable paragraph may be a poor corpus source even if its
-provenance is excellent. For the first pilot, prefer documents that can supply
-roughly 3-5 independent sustained-prose excerpts without dipping into bullets,
-appendices with different authorship, captions, or repeated boilerplate.
+Passage yield is measured rather than assumed. The first frozen CBO business source
+(`cbo-62265`) yielded at least 11 clean 80-500-word passages, showing that a fixed
+"3-5 passages per document" expectation is too restrictive. For the first pilot,
+use two separate corpus constraints:
 
-## 3. Freeze genre-stratified source splits and prepare annotation packets
+- **hard structural floor:** at least 6 independent approved documents per genre;
+- **provisional volume target:** at least 25 clean passages per genre.
+
+The first is structural and cannot be waived by high-yield documents. The second is
+an empirical starting target and should be revisited after multiple source types and
+genres have been audited.
+
+## 4. Freeze genre-stratified source splits and prepare annotation packets
 
 ```bash
 python scripts/prepare_lora_annotations.py \
@@ -137,9 +270,10 @@ planner reports two separate fingerprints:
 - `registry_split_sha256` — document identities and their exact split assignment;
 - `source_snapshot_set_sha256` — the exact reviewed artifact versions.
 
-Annotation preparation copies each source snapshot into packet metadata **before**
-the frozen annotation manifest is written. Changing the target, provenance, split,
-or source artifact hash afterward invalidates the frozen contract.
+Annotation preparation copies each source snapshot and text-derivation contract into
+packet metadata **before** the frozen annotation manifest is written. Changing the
+target, provenance, split, source artifact hash, extractor contract, corrections
+hash, or canonical-text hash afterward invalidates the frozen contract.
 
 A tiny smoke fixture can bypass the coverage requirement only explicitly:
 
@@ -161,7 +295,7 @@ required_qualifications
 Nothing automatically derives a semantic plan from the target. That is an
 intentional leakage control.
 
-## 4. Semantic-plan annotation
+## 5. Semantic-plan annotation
 
 ### Manual path
 
@@ -237,7 +371,7 @@ The existing LoRA dataset validator checks **all prompt-bearing fields** for lon
 verbatim spans copied from `target_text`. A completed packet that leaks target prose
 will fail compilation.
 
-## 5. Compile and validate
+## 6. Compile and validate
 
 Diagnostic compile:
 
@@ -265,7 +399,7 @@ The second form refuses to produce a trainable corpus unless:
 The QLoRA runner independently checks the same genre x split requirement before
 heavy imports, model download, or GPU initialization when `--execute` is supplied.
 
-## 6. Audit the corpus
+## 7. Audit the corpus
 
 ```bash
 python scripts/audit_lora_dataset.py \
@@ -297,7 +431,7 @@ Defaults also warn when one source exceeds 15% of examples or words and when a
 genre has fewer than five examples. Those are corpus-design warnings rather than
 model hyperparameters; tune them only with an explicit corpus rationale.
 
-## 7. Validate without training
+## 8. Validate without training
 
 ```bash
 python scripts/validate_lora_dataset.py research/lora/datasets/lora_v1.jsonl
@@ -311,19 +445,23 @@ contract is satisfied.
 
 ## Initial corpus target
 
-Do not optimize for a large number of excerpts immediately. First build a small,
-auditable corpus that can exercise the entire pipeline:
+Do not optimize for a large number of excerpts immediately. The first real adapter
+pilot uses:
 
 ```text
-~30-50 source documents
-~150-300 excerpts
 5 target genres
-~6-10 source documents per genre
-multiple provenance/source pools
+>= 6 independent approved source documents per genre   HARD FLOOR
+>= 25 clean passages per genre                         PROVISIONAL TARGET
+multiple provenance/source pools where practical
 train/dev/holdout represented inside every genre
 ```
 
-This is enough for a first *pipeline and overfit-risk experiment*, not enough to
+The six-document floor protects out-of-sample independence. The 25-passage target
+is deliberately provisional and should move only in response to measured passage
+yield and adapter learning behavior. A single high-yield report can satisfy much of
+the volume target but can never substitute for independent documents.
+
+This corpus is for a first *pipeline and overfit-risk experiment*, not enough to
 claim a production-quality writing adapter. The first training question is simply
 whether the adapter moves held-out style behavior while the fidelity gates remain
 clean **in every genre**, rather than only in a globally pooled holdout.
