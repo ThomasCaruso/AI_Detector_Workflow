@@ -62,6 +62,30 @@ def test_target_instruction_split_and_provenance_are_frozen(tmp_path):
         assert any("frozen source-target fields changed" in error for error in errors)
 
 
+def test_source_pages_and_exclusions_are_frozen(tmp_path):
+    for field, original, replacement in [
+        ("source_pages", [2], [3]),
+        (
+            "source_exclusions",
+            [{"pages": [1], "category": "rights", "reason": "Third-party cover."}],
+            [],
+        ),
+    ]:
+        root = tmp_path / field
+        root.mkdir()
+        packet = _packet()
+        packet["metadata"][field] = original
+        (root / "a.json").write_text(json.dumps(packet), encoding="utf-8")
+        write_frozen_manifest([packet], root)
+
+        changed = json.loads((root / "a.json").read_text(encoding="utf-8"))
+        changed["metadata"][field] = replacement
+        (root / "a.json").write_text(json.dumps(changed), encoding="utf-8")
+
+        errors = verify_frozen_manifest(root)
+        assert any("frozen source-target fields changed" in error for error in errors)
+
+
 def test_new_or_missing_packet_is_rejected(tmp_path):
     packet = _packet()
     (tmp_path / "a.json").write_text(json.dumps(packet), encoding="utf-8")
