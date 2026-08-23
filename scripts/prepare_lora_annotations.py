@@ -100,7 +100,11 @@ def main() -> int:
     if target_errors:
         print(
             json.dumps(
-                {"canonical_target_and_source_pages_valid": False, "errors": target_errors},
+                {
+                    "canonical_target_valid": False,
+                    "source_pages_valid": False,
+                    "errors": target_errors,
+                },
                 indent=2,
             )
         )
