@@ -52,6 +52,29 @@ def test_repeated_same_page_break_reports_exact_expected_count():
     assert items[0].verdict == "JOIN"
 
 
+def test_alphanumeric_designators_are_detected_and_protected_by_inline_evidence():
+    pages = [
+        PageText(1, "COVID-\n19 affected the program. DDG-\n51 and F/A-\n18 were discussed."),
+        PageText(2, "COVID-19 recurs. DDG-51 recurs. F/A-18 recurs."),
+    ]
+    items = _by_old(suggest_linebreak_hyphenation(pages))
+
+    assert items["COVID-\n19"].verdict == "KEEP"
+    assert items["COVID-\n19"].proposed_new == "COVID-19"
+    assert items["DDG-\n51"].verdict == "KEEP"
+    assert items["DDG-\n51"].proposed_new == "DDG-51"
+    assert items["F/A-\n18"].verdict == "KEEP"
+    assert items["F/A-\n18"].proposed_new == "F/A-18"
+
+
+def test_numeric_footnote_interruption_is_detected_but_not_guessed():
+    pages = [PageText(1, "The businesses accept-\n32. Additional prose follows.")]
+    item = suggest_linebreak_hyphenation(pages)[0]
+    assert item.old == "accept-\n32"
+    assert item.verdict == "UNRESOLVED"
+    assert item.proposed_new is None
+
+
 def test_review_is_advisory_and_does_not_mutate_page_text():
     page = PageText(1, "full-\nload and full-load")
     before = page.text
