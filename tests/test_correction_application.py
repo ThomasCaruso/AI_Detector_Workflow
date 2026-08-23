@@ -1,7 +1,12 @@
 from authorship_shift.correction_application import (
     apply_reviewed_corrections_order_invariant,
 )
-from authorship_shift.text_derivation import PageText, pages_sha256
+from authorship_shift.text_derivation import (
+    PageText,
+    apply_reviewed_corrections,
+    corrections_sha256,
+    pages_sha256,
+)
 
 
 def _payload(pages, replacements):
@@ -89,3 +94,34 @@ def test_application_is_order_invariant_when_new_text_matches_another_old_rule()
     )
     assert first == second
     assert first[0].text == "bar then baz"
+
+
+def test_public_apply_reviewed_corrections_uses_order_invariant_semantics():
+    pages = [PageText(1, "foo then bar")]
+    replacements = [
+        {"page": 1, "old": "foo", "new": "bar", "expected_count": 1},
+        {"page": 1, "old": "bar", "new": "baz", "expected_count": 1},
+    ]
+    first, _ = apply_reviewed_corrections(
+        pages,
+        _payload(pages, replacements),
+        artifact_sha256="a" * 64,
+    )
+    second, _ = apply_reviewed_corrections(
+        pages,
+        _payload(pages, list(reversed(replacements))),
+        artifact_sha256="a" * 64,
+    )
+    assert first == second
+    assert first[0].text == "bar then baz"
+
+
+def test_corrections_hash_is_invariant_to_replacement_order():
+    pages = [PageText(1, "foo then bar")]
+    replacements = [
+        {"page": 1, "old": "foo", "new": "bar", "expected_count": 1, "reason": "repair one"},
+        {"page": 1, "old": "bar", "new": "baz", "expected_count": 1, "reason": "repair two"},
+    ]
+    forward = _payload(pages, replacements)
+    reversed_payload = _payload(pages, list(reversed(replacements)))
+    assert corrections_sha256(forward) == corrections_sha256(reversed_payload)
