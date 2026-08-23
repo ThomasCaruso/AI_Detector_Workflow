@@ -11,10 +11,12 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from authorship_shift.correction_application import (
+    apply_reviewed_corrections_order_invariant,
+)
 from authorship_shift.text_derivation import (
     EXTRACTOR_VERSION,
     PageText,
-    apply_reviewed_corrections,
     normalize_pdf_text,
     sha256_file,
     write_canonical_extraction,
@@ -74,7 +76,7 @@ def main() -> int:
             if not isinstance(correction_payload, dict):
                 raise ValueError("corrections file must contain a JSON object")
 
-        canonical_pages, correction_hash = apply_reviewed_corrections(
+        canonical_pages, correction_hash = apply_reviewed_corrections_order_invariant(
             base_pages,
             correction_payload,
             artifact_sha256=artifact_hash,
