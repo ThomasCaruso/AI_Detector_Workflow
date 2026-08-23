@@ -170,7 +170,12 @@ python scripts/extract_source_text.py \
 The correction ledger is bound to both the artifact SHA-256 and the base extracted
 text SHA-256. Every replacement is page-scoped and carries an expected occurrence
 count, so extraction drift causes a hard failure instead of applying a patch to the
-wrong text.
+wrong text. Corrections are validated against the **original page text** and applied
+simultaneously. If two rules claim overlapping source characters—for example a
+short `T ransport` rule inside `T ransportation`—extraction fails and the reviewer
+must make the shorter rule more specific. This makes canonical output invariant to
+ledger ordering and prevents one replacement from creating text that a later rule
+silently rewrites.
 
 Populate the local registry with the resulting contract:
 
@@ -229,17 +234,20 @@ Rules:
   descriptions;
 - prefer sustained prose of roughly 80-500 words for the first corpus.
 
-Passage yield is measured rather than assumed. The first frozen CBO business source
-(`cbo-62265`) yielded at least 11 clean 80-500-word passages, showing that a fixed
-"3-5 passages per document" expectation is too restrictive. For the first pilot,
-use two separate corpus constraints:
+Passage yield is measured rather than assumed. The first four frozen CBO business
+sources produced 65 heuristic clean passages and 22,975 segmentation-independent
+prose words in aggregate. That evidence makes passage scarcity non-binding for the
+business-analysis pool. For the first pilot, use two deliberately asymmetric corpus
+constraints:
 
 - **hard structural floor:** at least 6 independent approved documents per genre;
-- **provisional volume target:** at least 25 clean passages per genre.
+- **monitoring threshold:** at least 25 clean passages per genre.
 
 The first is structural and cannot be waived by high-yield documents. The second is
-an empirical starting target and should be revisited after multiple source types and
-genres have been audited.
+a low-volume warning, not a target to optimize toward. Continue measuring passage
+count and prose-word volume in other genres; if another source pool behaves very
+differently, revisit the monitoring threshold without weakening document
+independence.
 
 ## 4. Freeze genre-stratified source splits and prepare annotation packets
 
@@ -451,15 +459,16 @@ pilot uses:
 ```text
 5 target genres
 >= 6 independent approved source documents per genre   HARD FLOOR
->= 25 clean passages per genre                         PROVISIONAL TARGET
+>= 25 clean passages per genre                         MONITORING THRESHOLD
 multiple provenance/source pools where practical
 train/dev/holdout represented inside every genre
 ```
 
-The six-document floor protects out-of-sample independence. The 25-passage target
-is deliberately provisional and should move only in response to measured passage
-yield and adapter learning behavior. A single high-yield report can satisfy much of
-the volume target but can never substitute for independent documents.
+The six-document floor protects out-of-sample independence. The 25-passage number
+is a low-volume monitoring threshold, not a binding collection target. Four frozen
+CBO business-analysis documents already produced 65 heuristic passages and 22,975
+segmentation-independent prose words. A single high-yield report can satisfy much
+of the volume threshold but can never substitute for independent documents.
 
 This corpus is for a first *pipeline and overfit-risk experiment*, not enough to
 claim a production-quality writing adapter. The first training question is simply
