@@ -20,14 +20,15 @@ from authorship_shift.corpus_pipeline import (
 )
 from authorship_shift.excerpt_dedup import audit_raw_excerpt_duplicates
 from authorship_shift.registry_io import load_source_registry_safe
+from authorship_shift.source_exclusions import (
+    load_registry_source_exclusions,
+    validate_excerpt_pages,
+)
 from authorship_shift.source_snapshot import (
     load_registry_snapshots,
     snapshot_set_sha256,
 )
-from authorship_shift.text_derivation import (
-    canonical_text_contains,
-    load_registry_text_derivations,
-)
+from authorship_shift.text_derivation import load_registry_text_derivations
 
 
 def main() -> int:
@@ -70,6 +71,13 @@ def main() -> int:
         print(json.dumps({"text_derivation_valid": False, "errors": derivation_errors}, indent=2))
         return 2
 
+    source_exclusions, exclusion_errors = load_registry_source_exclusions(
+        args.source_registry
+    )
+    if exclusion_errors:
+        print(json.dumps({"source_exclusions_valid": False, "errors": exclusion_errors}, indent=2))
+        return 2
+
     try:
         excerpts = load_raw_excerpts(args.raw_jsonl)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
@@ -79,14 +87,23 @@ def main() -> int:
     target_errors: list[str] = []
     for excerpt in excerpts:
         pages = canonical_pages.get(excerpt.source_id)
-        if pages is not None and not canonical_text_contains(pages, excerpt.target_text):
-            target_errors.append(
-                f"{excerpt.id}: target_text is not a whitespace-only reflow of the frozen "
-                f"canonical extraction for source {excerpt.source_id!r}; record extraction "
-                "repairs in the reviewed correction ledger before creating the excerpt"
+        if pages is None:
+            continue
+        try:
+            validate_excerpt_pages(
+                excerpt,
+                pages,
+                source_exclusions.get(excerpt.source_id, tuple()),
             )
+        except ValueError as exc:
+            target_errors.append(str(exc))
     if target_errors:
-        print(json.dumps({"canonical_target_valid": False, "errors": target_errors}, indent=2))
+        print(
+            json.dumps(
+                {"canonical_target_and_source_pages_valid": False, "errors": target_errors},
+                indent=2,
+            )
+        )
         return 2
 
     dedup_report = audit_raw_excerpt_duplicates(excerpts)
@@ -128,8 +145,9 @@ def main() -> int:
             )
         )
 
-    # Snapshot and derivation metadata are copied from the reviewed local registry
-    # before the frozen manifest is written. Neither block is part of the model prompt.
+    # Snapshot, derivation, and exclusion metadata are copied from the reviewed
+    # local registry before the frozen manifest is written. They are audit data,
+    # not model-prompt fields. metadata.source_pages originates in raw excerpts.
     for packet in packets:
         source_id = packet["provenance"]["source_id"]
         snapshot = snapshots.get(source_id)
@@ -140,6 +158,9 @@ def main() -> int:
             packet.setdefault("metadata", {})[
                 "source_text_derivation"
             ] = derivation.frozen_dict()
+        packet.setdefault("metadata", {})["source_exclusions"] = [
+            item.to_dict() for item in source_exclusions.get(source_id, tuple())
+        ]
 
     written = write_annotation_packets(packets, args.out_dir)
     frozen_manifest = write_frozen_manifest(packets, args.out_dir)
@@ -149,12 +170,13 @@ def main() -> int:
     print(f"registry_split_sha256={report.registry_split_sha256}")
     print(f"source_snapshot_set_sha256={snapshot_set_sha256(snapshots)}")
     print(f"text_derivations={len(derivations)}")
+    print(f"sources_with_exclusions={sum(bool(value) for value in source_exclusions.values())}")
     print(f"out_dir={args.out_dir}")
     print(
         "Fill content_atoms, immutable_details, required_qualifications, then set "
         "metadata.annotation_status to 'ready'. The frozen manifest prevents target, "
-        "instruction, split, genre, provenance, source snapshot, or text derivation "
-        "from changing after preparation."
+        "instruction, split, genre, provenance, source pages, source exclusions, "
+        "source snapshot, or text derivation from changing after preparation."
     )
     return 0
 
