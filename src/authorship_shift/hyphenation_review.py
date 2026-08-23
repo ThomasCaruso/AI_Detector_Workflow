@@ -6,7 +6,16 @@ from typing import Iterable
 
 from .text_derivation import PageText
 
-_LINEBREAK_HYPHEN_RE = re.compile(r"(?P<left>[A-Za-z]{2,})-\n(?P<right>[A-Za-z]{2,})")
+# Detect token fragments ending in a hyphen immediately before a PDF line break.
+# Alphanumeric fragments and internal slashes are intentional: publisher output can
+# break identifiers such as COVID-\n19, DDG-\n51, and F/A-\n18. This is advisory
+# detection only; ambiguous cases such as accept-\n32 remain UNRESOLVED until a
+# reviewer decides whether the number is a footnote interruption or part of the
+# token.
+_TOKEN_FRAGMENT = r"[A-Za-z0-9](?:[A-Za-z0-9/]*[A-Za-z0-9])?"
+_LINEBREAK_HYPHEN_RE = re.compile(
+    rf"(?<![A-Za-z0-9/])(?P<left>{_TOKEN_FRAGMENT})-\n(?P<right>[A-Za-z0-9]+)(?![A-Za-z0-9])"
+)
 
 
 @dataclass(frozen=True)
@@ -27,7 +36,7 @@ class HyphenationSuggestion:
 
 def _whole_word_count(text: str, form: str) -> int:
     pattern = re.compile(
-        rf"(?<![A-Za-z]){re.escape(form)}(?![A-Za-z])",
+        rf"(?<![A-Za-z0-9]){re.escape(form)}(?![A-Za-z0-9])",
         flags=re.IGNORECASE,
     )
     return len(pattern.findall(text))
