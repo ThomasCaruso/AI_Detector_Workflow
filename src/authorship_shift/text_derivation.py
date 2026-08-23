@@ -122,12 +122,30 @@ def pages_sha256(pages: Iterable[PageText]) -> str:
 CORRECTION_KEYS = frozenset({"page", "old", "new", "expected_count", "reason"})
 
 
+def _order_invariant_replacements(value: Any) -> Any:
+    """Return replacement-list semantics independent of ledger list ordering."""
+
+    if not isinstance(value, list):
+        return value
+    return sorted(
+        value,
+        key=lambda item: json.dumps(
+            item,
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+    )
+
+
 def corrections_sha256(payload: dict[str, Any]) -> str:
+    """Fingerprint correction semantics rather than incidental list ordering."""
+
     semantic = {
         "schema_version": payload.get("schema_version"),
         "artifact_sha256": payload.get("artifact_sha256"),
         "base_text_sha256": payload.get("base_text_sha256"),
-        "replacements": payload.get("replacements", []),
+        "replacements": _order_invariant_replacements(payload.get("replacements", [])),
     }
     encoded = json.dumps(
         semantic,
@@ -144,66 +162,21 @@ def apply_reviewed_corrections(
     *,
     artifact_sha256: str,
 ) -> tuple[list[PageText], str | None]:
-    rows = [PageText(row.page, row.text) for row in pages]
-    if correction_payload is None:
-        return rows, None
-    if correction_payload.get("schema_version") != CORRECTIONS_SCHEMA_VERSION:
-        raise ValueError(
-            f"corrections schema_version must be {CORRECTIONS_SCHEMA_VERSION}"
-        )
-    if correction_payload.get("artifact_sha256") != artifact_sha256:
-        raise ValueError("corrections artifact_sha256 does not match reviewed PDF")
+    """Apply the public reviewed-correction API with order-invariant semantics.
 
-    base_hash = pages_sha256(rows)
-    if correction_payload.get("base_text_sha256") != base_hash:
-        raise ValueError("corrections base_text_sha256 does not match extracted base text")
+    The implementation lives in ``correction_application`` to keep overlap
+    planning separate from text-derivation metadata. The import is local to avoid
+    a module-import cycle because that implementation uses the constants and
+    ``PageText`` type defined here.
+    """
 
-    replacements = correction_payload.get("replacements")
-    if not isinstance(replacements, list):
-        raise ValueError("corrections replacements must be a list")
+    from .correction_application import apply_reviewed_corrections_order_invariant
 
-    page_map = {row.page: row.text for row in rows}
-    for index, replacement in enumerate(replacements, start=1):
-        if not isinstance(replacement, dict):
-            raise ValueError(f"correction {index}: replacement must be an object")
-        try:
-            page_number = int(replacement["page"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(f"correction {index}: page must be an integer") from exc
-        if page_number not in page_map:
-            raise ValueError(f"correction {index}: page {page_number} is absent")
-        unknown = sorted(set(replacement) - CORRECTION_KEYS)
-        if unknown:
-            raise ValueError(
-                f"correction {index}: unknown key(s) {', '.join(unknown)}; "
-                f"allowed keys are {', '.join(sorted(CORRECTION_KEYS))}"
-            )
-        old = str(replacement.get("old", ""))
-        new = str(replacement.get("new", ""))
-        if not old:
-            raise ValueError(f"correction {index}: old text is required")
-        if old == new:
-            raise ValueError(f"correction {index}: no-op replacement is not allowed")
-        # Required, never defaulted: a reviewer must state how many occurrences
-        # they checked, so a mistyped field cannot silently weaken the check.
-        try:
-            expected_count = int(replacement["expected_count"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(
-                f"correction {index}: expected_count is required and must be an integer"
-            ) from exc
-        if expected_count < 1:
-            raise ValueError(f"correction {index}: expected_count must be at least 1")
-        actual_count = page_map[page_number].count(old)
-        if actual_count != expected_count:
-            raise ValueError(
-                f"correction {index}: page {page_number} expected {expected_count} "
-                f"occurrence(s) of {old!r}, found {actual_count}"
-            )
-        page_map[page_number] = page_map[page_number].replace(old, new, expected_count)
-
-    corrected = [PageText(page, page_map[page]) for page in sorted(page_map)]
-    return corrected, corrections_sha256(correction_payload)
+    return apply_reviewed_corrections_order_invariant(
+        pages,
+        correction_payload,
+        artifact_sha256=artifact_sha256,
+    )
 
 
 def canonical_text_contains(canonical_pages: Iterable[PageText], target_text: str) -> bool:
@@ -410,7 +383,10 @@ def load_registry_text_derivations(
         errors.extend(f"{source_id}: {item}" for item in canonical_errors)
         if payload is None:
             continue
-        pages = [PageText(page=int(item["page"]), text=str(item["text"])) for item in payload["pages"]]
+        pages = [
+            PageText(page=int(item["page"]), text=str(item["text"]))
+            for item in payload["pages"]
+        ]
         derivations[source_id] = derivation
         canonical_pages[source_id] = pages
     return derivations, canonical_pages, errors
