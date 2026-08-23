@@ -18,6 +18,7 @@ from authorship_shift.corpus_pipeline import (
     validate_source_registry,
     write_annotation_packets,
 )
+from authorship_shift.excerpt_dedup import audit_raw_excerpt_duplicates
 from authorship_shift.registry_io import load_source_registry_safe
 from authorship_shift.source_snapshot import (
     load_registry_snapshots,
@@ -88,6 +89,16 @@ def main() -> int:
         print(json.dumps({"canonical_target_valid": False, "errors": target_errors}, indent=2))
         return 2
 
+    dedup_report = audit_raw_excerpt_duplicates(excerpts)
+    if not dedup_report.valid:
+        print(
+            json.dumps(
+                {"raw_excerpt_dedup_valid": False, **dedup_report.to_dict()},
+                indent=2,
+            )
+        )
+        return 2
+
     packets, report = prepare_annotation_packets(
         excerpts,
         sources,
@@ -97,6 +108,25 @@ def main() -> int:
     print(json.dumps(report.to_dict(), indent=2))
     if not report.valid:
         return 2
+
+    if dedup_report.within_source_near_duplicates:
+        print(
+            json.dumps(
+                {
+                    "raw_excerpt_dedup_warning": True,
+                    "message": (
+                        "near-duplicate raw excerpts were found within the same source; "
+                        "they cannot cross source-level train/dev/holdout assignment, but "
+                        "review them for accidental repeated extraction or overweighting"
+                    ),
+                    "within_source_near_duplicates": [
+                        row.to_dict()
+                        for row in dedup_report.within_source_near_duplicates
+                    ],
+                },
+                indent=2,
+            )
+        )
 
     # Snapshot and derivation metadata are copied from the reviewed local registry
     # before the frozen manifest is written. Neither block is part of the model prompt.
