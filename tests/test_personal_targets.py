@@ -10,6 +10,8 @@ import pytest
 
 from authorship_shift.personal_extraction import Region
 from authorship_shift.personal_targets import (
+    QUOTATION_SELF,
+    QUOTATION_TITLE,
     REASON_BARE_URL,
     REASON_FROZEN_EXCLUSION,
     REASON_HEADING_STYLE,
@@ -17,8 +19,10 @@ from authorship_shift.personal_targets import (
     REASON_NON_BODY,
     REASON_TABLE,
     AnnotationRecord,
+    audit_target_quotations,
     check_plan_fidelity,
     classify_regions,
+    find_long_quotations,
     group_target_units,
     run_leakage_checks,
     unit_length_summary,
@@ -254,6 +258,84 @@ def test_length_summary_reports_median_min_and_max() -> None:
 
 def test_length_summary_of_nothing_is_zeroed() -> None:
     assert unit_length_summary([])["units"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Verbatim third-party quotation inside targets
+# ---------------------------------------------------------------------------
+
+
+def test_a_long_quotation_is_found() -> None:
+    text = 'She wrote that “access to reading is never evenly shared among the people who need it”.'
+
+    found = find_long_quotations(text)
+
+    assert len(found) == 1
+    assert found[0][0] == 13
+
+
+def test_short_quotations_are_below_the_substantive_threshold() -> None:
+    text = 'The term “shared reading” appears in “On Shared Reading” throughout the chapter.'
+
+    assert find_long_quotations(text) == ()
+
+
+def test_an_apostrophe_is_not_treated_as_a_quote_delimiter() -> None:
+    # Treating apostrophes as delimiters matches across ordinary possessives and
+    # yields nonsense spans, so they are excluded.
+    text = "Whitlock's account of the writer's own reading habits runs for several pages here."
+
+    assert find_long_quotations(text) == ()
+
+
+def test_quotations_are_reported_longest_first() -> None:
+    text = (
+        '“one two three four five six seven eight nine” and '
+        '“alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu”'
+    )
+
+    found = find_long_quotations(text)
+
+    assert [count for count, _ in found] == [12, 9]
+
+
+def test_an_undeclared_long_quotation_is_unaccounted_for() -> None:
+    regions = {
+        "essay:b0000": 'He said “the whole of this sentence belongs to somebody else entirely, not me”.'
+    }
+
+    findings = audit_target_quotations(regions)
+
+    assert len(findings) == 1
+    assert not findings[0].accounted_for
+    assert findings[0].disposition is None
+
+
+@pytest.mark.parametrize("disposition", [QUOTATION_SELF, QUOTATION_TITLE])
+def test_a_declared_long_quotation_is_accounted_for(disposition: str) -> None:
+    regions = {
+        "essay:b0000": 'I wrote “the whole of this sentence belongs to me and nobody else at all”.'
+    }
+
+    findings = audit_target_quotations(regions, dispositions={"essay:b0000": disposition})
+
+    assert findings[0].accounted_for
+
+
+def test_an_unrecognised_disposition_does_not_count_as_accounted_for() -> None:
+    regions = {
+        "essay:b0000": 'He said “the whole of this sentence belongs to somebody else entirely, not me”.'
+    }
+
+    findings = audit_target_quotations(regions, dispositions={"essay:b0000": "probably fine"})
+
+    assert not findings[0].accounted_for
+
+
+def test_regions_without_long_quotations_produce_no_findings() -> None:
+    regions = {"essay:b0000": "Entirely my own prose, with no quotation in it at all."}
+
+    assert audit_target_quotations(regions) == ()
 
 
 # ---------------------------------------------------------------------------

@@ -306,6 +306,83 @@ def unit_length_summary(units: Sequence[TargetUnit]) -> dict[str, float | int]:
 
 
 # ---------------------------------------------------------------------------
+# Verbatim third-party quotation inside targets
+# ---------------------------------------------------------------------------
+
+# Straight and curly double quotes only. Apostrophes are excluded deliberately:
+# treating them as delimiters matches across ordinary possessives and produces
+# nonsense spans.
+_QUOTED_SPAN_RE = re.compile(r"[“\"]([^“”\"]+)[”\"]")
+
+# How a reviewed long quotation inside an eligible target is accounted for.
+QUOTATION_SELF = "self_quotation"
+QUOTATION_TITLE = "work_title"
+QUOTATION_DISPOSITIONS = frozenset({QUOTATION_SELF, QUOTATION_TITLE})
+
+
+@dataclass(frozen=True)
+class QuotationFinding:
+    region_id: str
+    words: int
+    span: str
+    disposition: str | None = None
+
+    @property
+    def accounted_for(self) -> bool:
+        return self.disposition in QUOTATION_DISPOSITIONS
+
+
+def find_long_quotations(text: str, *, min_words: int = 8) -> tuple[tuple[int, str], ...]:
+    """Quoted spans of at least ``min_words`` words, longest first.
+
+    ``min_words`` defaults to the same span length the plan/target surface gate
+    uses, so "substantive verbatim language" means one thing across the
+    contract rather than two.
+    """
+
+    found = []
+    for match in _QUOTED_SPAN_RE.finditer(text):
+        span = match.group(1).strip()
+        count = len(span.split())
+        if count >= min_words:
+            found.append((count, span))
+    return tuple(sorted(found, reverse=True))
+
+
+def audit_target_quotations(
+    region_texts: Mapping[str, str],
+    *,
+    dispositions: Mapping[str, str] | None = None,
+    min_words: int = 8,
+) -> tuple[QuotationFinding, ...]:
+    """Flag every long quotation inside target-eligible regions.
+
+    Attribution cannot be decided mechanically - a long quoted span may be the
+    author quoting a source, quoting another student, quoting a work's title, or
+    quoting their own earlier writing. So this reports every long quotation and
+    requires each one to carry an explicit reviewed disposition. Anything
+    unaccounted for comes back with ``disposition=None``, which the caller must
+    treat as a failure rather than a warning: an unreviewed long quotation in a
+    target is exactly the case that would put another author's prose into the
+    personalization signal.
+    """
+
+    declared = dict(dispositions or {})
+    findings: list[QuotationFinding] = []
+    for region_id, text in region_texts.items():
+        for count, span in find_long_quotations(text, min_words=min_words):
+            findings.append(
+                QuotationFinding(
+                    region_id=region_id,
+                    words=count,
+                    span=span,
+                    disposition=declared.get(region_id),
+                )
+            )
+    return tuple(findings)
+
+
+# ---------------------------------------------------------------------------
 # Semantic-plan fidelity
 # ---------------------------------------------------------------------------
 
