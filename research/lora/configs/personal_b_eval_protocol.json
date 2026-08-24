@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "experiment_id": "personal-style-b-v1",
+  "protocol_id": "personal-style-b-holdout-eval-v1",
+  "base_model": "Qwen/Qwen3-8B",
+  "base_model_revision": "b968826d9c46dd6066d109eabc6255188de91218",
+  "adapter_artifact_sha256": null,
+  "adapter_freeze_requirement": "adapter_artifact_sha256 must be populated from the frozen post-training artifact manifest before any holdout generation begins",
+  "holdout": {
+    "expected_examples": 12,
+    "training_host_must_not_possess_holdout": true,
+    "generation_host_may_receive_holdout_only_after_adapter_freeze": true,
+    "example_order": "stable_example_id_ascending"
+  },
+  "prompt": {
+    "template_source": "research/lora/train_personal_qlora.py::render_semantic_prompt",
+    "system_prompt": null,
+    "chat_template": true,
+    "enable_thinking": false,
+    "condition_specific_prompting": false
+  },
+  "generation": {
+    "do_sample": true,
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "min_p": 0.0,
+    "max_new_tokens": 768,
+    "num_return_sequences": 1,
+    "repetition_penalty": 1.0,
+    "evaluation_seed": 20260824,
+    "per_example_seed_rule": "sha256(protocol_id + ':' + example_id) low_32_bits xor evaluation_seed; identical seed for base and adapter condition"
+  },
+  "conditions": [
+    "base",
+    "adapter"
+  ],
+  "generation_contract": {
+    "generate_all_outputs_before_scoring": true,
+    "expected_output_count": 24,
+    "same_prompt_for_both_conditions": true,
+    "same_generation_settings_for_both_conditions": true,
+    "same_per_example_seed_for_both_conditions": true,
+    "no_regeneration_after_scoring_begins": true,
+    "no_hyperparameter_changes_after_holdout_reveal": true
+  },
+  "blinding": {
+    "enabled": true,
+    "blind_before_scoring": true,
+    "scorer_condition_hidden": true,
+    "blind_seed": 20260825,
+    "label_format": "EVAL-###",
+    "mapping_kept_separate_until_scoring_complete": true,
+    "shuffle_all_24_outputs": true
+  },
+  "scoring_order": {
+    "score_only_after_all_24_outputs_exist": true,
+    "reveal_condition_mapping_only_after_scores_are_frozen": true
+  },
+  "forbidden": [
+    "condition-specific prompts",
+    "detector-optimized decoding",
+    "changing generation settings after viewing holdout outputs",
+    "selecting or regenerating favorable samples",
+    "retraining or modifying the adapter after holdout reveal",
+    "scoring any output before all 24 outputs are generated"
+  ]
+}
