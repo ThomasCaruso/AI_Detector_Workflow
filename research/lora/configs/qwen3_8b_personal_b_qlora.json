@@ -11,6 +11,7 @@
     "hyperparameters_precommitted": true
   },
   "base_model": "Qwen/Qwen3-8B",
+  "base_model_revision": "b968826d9c46dd6066d109eabc6255188de91218",
   "output_dir": "artifacts/lora/qwen3-8b-personal-b-v1",
   "training": {
     "max_length": 2048,

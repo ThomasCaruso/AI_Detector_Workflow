@@ -61,6 +61,15 @@ def load_config(path: Path) -> dict[str, Any]:
         raise ValueError("unsupported training config schema_version")
     if not payload.get("base_model"):
         raise ValueError("training config requires base_model")
+    # A bare model name resolves to whatever "main" points at on the day the pod
+    # is rented, so the run would not be reproducible. The personal config pins
+    # an exact commit; the general config is a separate contract and unaffected.
+    revision = str(payload.get("base_model_revision", "")).strip()
+    if not revision:
+        raise ValueError(
+            "personal training config requires base_model_revision; pin an exact "
+            "Hugging Face commit so the base model cannot move under the experiment"
+        )
     objective = payload.get("objective", {})
     if objective.get("commercial_detector_objective") is not False:
         raise ValueError("commercial_detector_objective must remain false")
@@ -215,6 +224,7 @@ def dry_run(config: dict[str, Any], manifest: dict[str, Any], examples, dataset_
     print(f"annotation_set_sha256={manifest['annotation_set_sha256']}")
     print(f"train_dataset_sha256={manifest['train_dataset_sha256']}")
     print(f"base_model={config['base_model']}")
+    print(f"base_model_revision={config['base_model_revision']}")
     print(f"output_dir={config['output_dir']}")
     print(f"epochs={int(float(config['training']['num_train_epochs']))}")
     print(f"prepared_prompt_completion_rows={len(rows)}")
@@ -325,9 +335,13 @@ def execute(config: dict[str, Any], manifest: dict[str, Any], examples, dataset_
     )
 
     model_name = str(config["base_model"])
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    revision = str(config["base_model_revision"])
+    print(f"base_model={model_name}")
+    print(f"base_model_revision={revision}")
+    tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision)
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
+        revision=revision,
         device_map="auto",
         torch_dtype=compute_dtype,
         quantization_config=quantization_config,

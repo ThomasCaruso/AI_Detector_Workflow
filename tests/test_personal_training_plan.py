@@ -369,6 +369,179 @@ def test_preflight_reports_without_downloading(capsys) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Pinned base-model revision
+# ---------------------------------------------------------------------------
+
+PINNED_REVISION = "b968826d9c46dd6066d109eabc6255188de91218"
+
+
+def _write_config(tmp_path: Path, **overrides) -> Path:
+    payload = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    for key, value in overrides.items():
+        if value is _MISSING:
+            payload.pop(key, None)
+        else:
+            payload[key] = value
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+class _Missing:
+    pass
+
+
+_MISSING = _Missing()
+
+
+def test_the_personal_config_pins_the_base_model_revision() -> None:
+    config = TRAIN.load_config(CONFIG_PATH)
+
+    assert config["base_model_revision"] == PINNED_REVISION
+
+
+def test_a_config_without_a_revision_is_rejected(tmp_path: Path) -> None:
+    path = _write_config(tmp_path, base_model_revision=_MISSING)
+
+    with pytest.raises(ValueError, match="base_model_revision"):
+        TRAIN.load_config(path)
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_a_blank_revision_is_rejected(tmp_path: Path, blank: str) -> None:
+    path = _write_config(tmp_path, base_model_revision=blank)
+
+    with pytest.raises(ValueError, match="base_model_revision"):
+        TRAIN.load_config(path)
+
+
+def test_the_dry_run_prints_the_full_revision(compiled, capsys) -> None:
+    TRAIN.main(
+        [
+            str(compiled["train_path"]),
+            "--manifest",
+            str(compiled["manifest_path"]),
+            "--config",
+            str(CONFIG_PATH),
+        ]
+    )
+
+    out = capsys.readouterr().out
+    assert f"base_model_revision={PINNED_REVISION}" in out
+
+
+class _FakeLoader:
+    """Records from_pretrained calls instead of downloading anything."""
+
+    def __init__(self, calls: list, label: str):
+        self._calls = calls
+        self._label = label
+
+    def from_pretrained(self, name, **kwargs):
+        self._calls.append((self._label, name, kwargs))
+        return _FakeArtifact(self._calls)
+
+
+class _FakeArtifact:
+    def __init__(self, calls: list):
+        self._calls = calls
+
+    def save_pretrained(self, output_dir):
+        self._calls.append(("save_pretrained", output_dir, {}))
+
+
+def _install_fake_ml_stack(monkeypatch, calls: list) -> None:
+    """Stand in for the ML stack so execute() can run without a GPU or network."""
+
+    import types
+
+    torch = types.ModuleType("torch")
+    torch.bfloat16 = "bfloat16"
+    torch.float16 = "float16"
+    cuda = types.SimpleNamespace(
+        is_available=lambda: True,
+        is_bf16_supported=lambda: True,
+    )
+    torch.cuda = cuda
+
+    datasets = types.ModuleType("datasets")
+
+    class _Dataset:
+        @staticmethod
+        def from_list(rows):
+            calls.append(("dataset_rows", len(rows), {}))
+            return rows
+
+    datasets.Dataset = _Dataset
+
+    peft = types.ModuleType("peft")
+    peft.LoraConfig = lambda **kwargs: ("lora_config", kwargs)
+    peft.prepare_model_for_kbit_training = lambda model: model
+
+    transformers = types.ModuleType("transformers")
+    transformers.AutoTokenizer = _FakeLoader(calls, "tokenizer")
+    transformers.AutoModelForCausalLM = _FakeLoader(calls, "model")
+    transformers.BitsAndBytesConfig = lambda **kwargs: ("bnb", kwargs)
+
+    trl = types.ModuleType("trl")
+    trl.SFTConfig = lambda **kwargs: types.SimpleNamespace(**kwargs)
+
+    class _SFTTrainer:
+        def __init__(self, **kwargs):
+            calls.append(("trainer_kwargs", sorted(kwargs), {}))
+            self._kwargs = kwargs
+
+        def train(self):
+            calls.append(("train", None, {}))
+
+        def save_model(self, output_dir):
+            calls.append(("save_model", output_dir, {}))
+
+    trl.SFTTrainer = _SFTTrainer
+
+    for name, module in (
+        ("torch", torch),
+        ("datasets", datasets),
+        ("peft", peft),
+        ("transformers", transformers),
+        ("trl", trl),
+    ):
+        monkeypatch.setitem(sys.modules, name, module)
+
+
+def test_both_loaders_receive_the_pinned_revision(compiled, monkeypatch, capsys) -> None:
+    calls: list = []
+    _install_fake_ml_stack(monkeypatch, calls)
+    config = TRAIN.load_config(CONFIG_PATH)
+
+    rc = TRAIN.execute(
+        config, compiled["manifest"], load_jsonl(compiled["train_path"]), compiled["train_path"]
+    )
+
+    assert rc == 0
+    loaders = {label: (name, kwargs) for label, name, kwargs in calls if label in {"tokenizer", "model"}}
+    assert set(loaders) == {"tokenizer", "model"}
+    for label, (name, kwargs) in loaders.items():
+        assert name == "Qwen/Qwen3-8B", label
+        assert kwargs.get("revision") == PINNED_REVISION, label
+    assert f"base_model_revision={PINNED_REVISION}" in capsys.readouterr().out
+
+
+def test_execute_builds_no_eval_dataset(compiled, monkeypatch) -> None:
+    calls: list = []
+    _install_fake_ml_stack(monkeypatch, calls)
+    config = TRAIN.load_config(CONFIG_PATH)
+
+    TRAIN.execute(
+        config, compiled["manifest"], load_jsonl(compiled["train_path"]), compiled["train_path"]
+    )
+
+    trainer_kwargs = next(value for label, value, _ in calls if label == "trainer_kwargs")
+    assert "train_dataset" in trainer_kwargs
+    assert "eval_dataset" not in trainer_kwargs
+
+
+# ---------------------------------------------------------------------------
 # Config and separation from the general trainer
 # ---------------------------------------------------------------------------
 
@@ -406,6 +579,18 @@ def test_the_personal_config_does_not_overwrite_the_general_one() -> None:
     assert general["output_dir"] == "artifacts/lora/qwen3-8b-pilot"
     assert general["name"] == "qwen3-8b-qlora-pilot"
     assert "experiment_id" not in general
+    # The revision pin is a personal-experiment decision. The general config is
+    # a separate contract and must not have acquired it as a side effect.
+    assert "base_model_revision" not in general
+
+
+def test_the_general_trainer_did_not_acquire_the_revision_requirement() -> None:
+    general_source = GENERAL_PATH.read_text(encoding="utf-8")
+
+    assert "base_model_revision" not in general_source
+    # It must still load its own config without one.
+    config = GENERAL.load_config(ROOT / "research" / "lora" / "configs" / "qwen3_8b_qlora.json")
+    assert config["base_model"] == "Qwen/Qwen3-8B"
 
 
 def test_the_general_trainer_still_requires_dev_and_holdout_and_genre_coverage() -> None:
