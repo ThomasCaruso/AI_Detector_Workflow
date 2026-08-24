@@ -1,90 +1,143 @@
 # Personal-style corpus track
 
-The general AuthorshipShift adapter and the personal-style adapter answer different questions and should remain separate experiments.
+The general AuthorshipShift adapter and the personal-style experiments answer different questions and remain separate evaluation tracks.
 
 ## Experiment design
 
-Evaluate three systems on the same held-out semantic plans:
+Two personal experiments are defined.
 
-1. **Base model** — unadapted open-weight model.
-2. **General adapter** — trained on the five-genre human-writing corpus.
-3. **Personalized adapter** — starts from the general adapter and receives an additional user-owned writing corpus.
+### Experiment A — natural voice
 
-The purpose of the personal track is to test whether authentic user-authored prose moves generation toward that writer's natural realization patterns while semantic fidelity remains clean. It is not a substitute for the five-genre corpus, because a single writer cannot provide the independent source diversity needed for the general writing experiment.
+Use only documents the user can identify as substantially self-authored without material AI drafting assistance. This experiment asks whether adaptation moves generation toward the user's unaided writing distribution while preserving semantic fidelity.
 
-## Preferred sources
+### Experiment B — accepted academic voice
 
-Prioritize genuinely user-authored prose, especially material written before routine AI-assisted drafting. Useful examples include:
+Use user-authored coursework that the user deliberately finalized/accepted, regardless of whether AI assistance was absent, material, or unknown. AI-assistance status is preserved as provenance metadata but is not an inclusion criterion for Experiment B.
 
-- essays and research papers;
-- finance/business assignments;
-- history or humanities papers;
-- reports and case analyses;
-- discussion posts and long-form responses;
-- other sustained prose the user can confidently identify as their own writing.
+Experiment B asks whether adaptation can reproduce the distribution of academic prose the user historically selected and accepted as representative of their submitted work. Detector scores are neither stored nor optimized.
 
-Older work is especially valuable because it provides a cleaner estimate of the writer's unaided distribution.
+For both experiments, compare the adapted model against the same unadapted base model on held-out semantic plans. A later general-adapter comparison may be added once the five-genre corpus is complete.
 
-## Provenance
+## Provenance classes
 
-Register personal documents as:
+Personal documents use one of these corpus-level provenance classes:
+
+- `self_authored` — substantially written by the user;
+- `ai_assisted_accepted` — AI materially contributed, but the user selected/edited/accepted the finished work;
+- `other_author` — written by another person and never eligible as a personalization target;
+- `unclassified` — provenance is not yet resolved.
+
+All personal source artifacts use:
 
 ```json
 "provenance_kind": "user_owned"
 ```
 
-Each source still requires an exact artifact snapshot. Preserve the original artifact rather than copying text into the public repository.
+AI-assistance status remains an independent field. Do not infer it from style classifiers or detector scores.
 
-For each document, record in local notes whether the prose was:
+## Frozen Experiment B corpus
 
-- written without AI assistance;
-- lightly AI-assisted (for example proofreading only);
-- materially AI-assisted;
-- uncertain.
+Experiment B is frozen before semantic-plan annotation begins. The local manifest pins:
 
-For the first personal experiment, prefer the first category. Materially AI-assisted documents should not be treated as clean evidence of the user's natural writing distribution.
+- exact source artifact SHA-256 values;
+- document-level train/holdout membership;
+- target-eligible paragraph/region masks;
+- exclusions for other-author material and reproduced regions;
+- the frozen corpus hash.
 
-## What is excluded
+The split is document-level. No paragraph from a holdout document may become a training target.
 
-Exclude text not authored by the user, including:
+If a portfolio reproduces a standalone document verbatim, exclude the duplicated region from one side of the corpus before annotation. Duplicate target text must not cross train/holdout boundaries.
 
-- assignment prompts and rubrics;
-- professor/teacher comments;
-- quotations and block quotes;
-- copied source passages;
-- bibliographies/reference lists;
-- boilerplate templates;
-- collaborator-written sections;
-- generated text that the user did not substantially author.
+## Lightweight personal annotation contract
 
-Citations and factual details may remain inside otherwise user-authored prose when they are naturally part of the writing, but source text itself must not be mistaken for target voice.
+The personal corpus does **not** reuse the full page-scoped PDF correction contract unless the source actually requires it. The personal artifacts are short, user-owned, and already audited at paragraph/region granularity. Requiring page numbers, rights scans, and long-document correction ledgers for clean DOCX text would add ceremony without strengthening the experiment.
 
-## Splitting and evaluation
+The personal contract is:
 
-Split at the **document** level, never by paragraph. All passages from one school paper belong to one split.
+```text
+immutable source artifact SHA-256
+→ deterministic format-specific extraction
+→ immutable extracted-text SHA-256
+→ frozen paragraph/region inclusion mask
+→ semantic plan + constraints
+→ immutable target text
+```
 
-Prefer a temporally and topically meaningful holdout when possible: keep several entire documents unseen during training, ideally from different courses/topics than the training documents.
+The following invariants remain mandatory:
 
-The held-out personal set is used to measure:
+1. **Exact artifact identity.** Every source target traces to the original frozen DOCX/PDF artifact hash.
+2. **Deterministic extraction.** The extractor name/version and extraction mode are pinned. Re-extraction from the same artifact must reproduce the same extracted-text hash.
+3. **Immutable target regions.** Each training example records the source document and exact paragraph/region identifiers used as its target. Excluded regions can never become targets without creating a new corpus contract.
+4. **Target fidelity.** Target text is copied from frozen eligible source regions. Cleaning may remove structural wrapper text but must not rewrite the user's prose.
+5. **Document-level split isolation.** Train and holdout membership is frozen before semantic-plan generation.
+6. **Duplicate/near-duplicate gates.** Exact and strong near-duplicate targets across train/holdout remain fatal.
+7. **Frozen annotation packets.** Once a semantic plan is reviewed and frozen, the target text, source identifiers, split, and inclusion mask cannot silently change.
+8. **No detector objective.** Detector scores are not corpus labels, training targets, reward signals, or evaluation gates.
 
-- semantic fidelity;
-- style distance to authentic user prose;
-- sentence/paragraph structure and lexical tendencies;
-- generalization to new topics;
-- suspicious verbatim memorization.
+## DOCX extraction
 
-A strong result is not reproduction of held-out wording. It is closer distributional behavior on new semantic plans while long verbatim overlap remains low.
+For DOCX, use a pinned OOXML extraction path rather than converting to PDF. Preserve paragraph ordering and stable paragraph identifiers. Extract body text plus any relevant tables/footnotes/endnotes/header/footer content needed for authorship review, but only frozen target-eligible body regions may become training targets.
 
-## Memorization control
+The extractor must record at least:
 
-Do not train on every available personal document. Reserve complete documents for evaluation before annotation begins. Once a personal document enters the training split, it cannot later be promoted to holdout.
+```json
+{
+  "extractor_name": "<pinned implementation>",
+  "extractor_version": "<version>",
+  "artifact_sha256": "<source hash>",
+  "extracted_text_sha256": "<derived text hash>"
+}
+```
 
-Use the existing duplicate/near-duplicate gates across training and holdout targets. If multiple assignments reuse the same template, prompt, or substantial prose, treat them as related sources and prevent leakage across the boundary.
+Do not normalize spelling, grammar, punctuation, capitalization, or sentence structure. Natural imperfections are part of the writing distribution.
+
+## PDF fallback
+
+If a personal PDF already has a clean text layer and stable paragraph extraction, it may use the same lightweight region contract with a pinned PDF extractor. If extraction artifacts materially alter target prose, escalate that source to the full canonical PDF correction workflow used by the general corpus.
+
+Escalation is source-specific; one problematic PDF does not force every personal document through page-scoped derivation machinery.
+
+## Semantic-plan annotations
+
+Training examples use the same conceptual representation as the general adapter:
+
+```text
+semantic plan + immutable constraints → authentic target realization
+```
+
+Plans describe **what the passage says**, not how to imitate its surface wording. At minimum capture:
+
+- content atoms;
+- immutable factual/details constraints;
+- required qualifications or caveats;
+- intended communicative function when it is necessary to understand the passage.
+
+Do not put stylistic instructions such as "write like Thomas" into the semantic plan. The target distribution, not the prompt, should supply the personalization signal.
+
+Model-assisted plan extraction is allowed only as a draft. It remains `needs_review` until checked against the target passage. The semantic plan must not introduce facts absent from the target.
+
+For very short adjacent paragraphs that form one indivisible thought, a multi-paragraph target is allowed. The source region identifiers must make that grouping explicit and deterministic.
+
+## Holdout evaluation
+
+Holdout documents never receive training targets. They are used to create evaluation semantic plans only after the split is frozen.
+
+Primary checks:
+
+- semantic fidelity to the held-out plan;
+- distributional similarity to held-out user prose;
+- sentence and paragraph structure;
+- lexical and syntactic tendencies;
+- generalization across topics;
+- suspicious verbatim overlap with training data.
+
+A strong result is closer behavior on unseen semantic plans without reproducing held-out wording or memorizing training passages.
 
 ## Storage
 
-Raw school work, extracted prose, annotations, and datasets stay under the existing gitignored local corpus/annotation/dataset paths. Public Git contains only tooling, schemas, aggregate metrics, and non-sensitive experiment documentation.
+Raw school work, extracted prose, local manifests, annotations, and datasets remain under gitignored local corpus/annotation/dataset paths. Public Git contains only tooling, schemas, aggregate metrics, experiment protocols, and non-sensitive documentation.
 
-## Do not add new ingestion machinery yet
+## Engineering rule
 
-The first batch of real user documents determines whether additional extraction support is needed. PDFs can use the existing frozen PDF derivation path. Plain text can use the existing artifact snapshot path. If the first useful corpus contains DOCX or another format whose text extraction is not reproducibly covered, define and pin that derivation only then rather than speculating in advance.
+Do not add general-purpose infrastructure merely because a theoretical edge case exists. Add or harden machinery only when a real personal-corpus artifact exposes a reproducibility, authorship, leakage, or fidelity failure that can affect the experiment.
