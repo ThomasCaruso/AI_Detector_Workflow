@@ -135,6 +135,79 @@ def dry_run(args, protocol: dict[str, Any]) -> int:
     return 0
 
 
+def preflight(protocol: dict[str, Any]) -> int:
+    """Report whether this machine can run the frozen generation. Downloads nothing.
+
+    The training run proved the value of checking the API surface before renting
+    time: the stack resolves to whatever is current on the day, and the protocol
+    pins sampling parameters that a newer major version may have renamed or
+    dropped. ``min_p`` in particular is a relatively recent addition, and
+    ``enable_thinking`` is a Qwen chat-template kwarg rather than a core one.
+    """
+
+    import platform
+
+    print(f"os={platform.platform()}")
+    print(f"python={platform.python_version()}")
+
+    def version_of(name: str) -> str | None:
+        try:
+            return getattr(__import__(name), "__version__", "unknown")
+        except Exception:
+            return None
+
+    torch_version = version_of("torch")
+    print(f"torch={torch_version or 'not installed'}")
+
+    cuda_available = False
+    if torch_version:
+        import torch
+
+        cuda_available = bool(torch.cuda.is_available())
+        print(f"cuda_available={str(cuda_available).lower()}")
+        print(f"cuda_version={torch.version.cuda or 'none'}")
+        if cuda_available:
+            print(f"gpu_name={torch.cuda.get_device_name(0)}")
+            total = torch.cuda.get_device_properties(0).total_memory
+            print(f"gpu_vram_gb={total / (1024 ** 3):.1f}")
+            print(f"bf16_supported={str(torch.cuda.is_bf16_supported()).lower()}")
+        else:
+            print("gpu_name=none")
+    else:
+        print("cuda_available=false")
+        print("gpu_name=none")
+
+    for name in ("transformers", "peft", "accelerate"):
+        print(f"{name}={version_of(name) or 'not installed'}")
+
+    # Every sampling parameter the protocol pins must be a field the installed
+    # generation stack actually understands. A silently dropped kwarg would mean
+    # generating under settings other than the frozen ones.
+    unsupported: list[str] = []
+    if version_of("transformers"):
+        from transformers import GenerationConfig
+
+        config_fields = set(vars(GenerationConfig()))
+        for key in ("do_sample", "temperature", "top_p", "top_k", "min_p",
+                    "max_new_tokens", "num_return_sequences", "repetition_penalty"):
+            supported = key in config_fields
+            print(f"supports_{key}={str(supported).lower()}")
+            if not supported:
+                unsupported.append(key)
+    else:
+        print("generation_kwargs_checked=false")
+        unsupported.append("transformers not installed")
+
+    ok = cuda_available and not unsupported
+    print(f"generation_supported={str(ok).lower()}")
+    print("model_download=false")
+    if unsupported:
+        print("blocked_reason=unsupported or unverifiable: " + ", ".join(unsupported))
+    if not cuda_available:
+        print("blocked_reason=no CUDA device available for generation")
+    return 0
+
+
 def execute(args, protocol: dict[str, Any]) -> int:
     examples = load_jsonl(args.holdout)
     plan = build_generation_plan(examples, protocol)
@@ -269,7 +342,9 @@ def main(argv: list[str] | None = None) -> int:
             "--execute loads the model and generates every output."
         )
     )
-    parser.add_argument("holdout", type=Path, help="Experiment B holdout JSONL (12 rows)")
+    parser.add_argument(
+        "holdout", type=Path, nargs="?", help="Experiment B holdout JSONL (12 rows)"
+    )
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
     parser.add_argument("--adapter-archive", type=Path, help="frozen adapter .tar to verify")
     parser.add_argument("--adapter-dir", type=Path, help="extracted adapter directory")
@@ -285,6 +360,11 @@ def main(argv: list[str] | None = None) -> int:
         / "personal_b_v1",
     )
     parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Report whether this machine can run the frozen generation. Downloads nothing.",
+    )
+    parser.add_argument(
         "--execute",
         action="store_true",
         help="Cross the model-loading boundary and generate all outputs",
@@ -292,6 +372,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     protocol = load_protocol(args.protocol)
+    if args.preflight:
+        return preflight(protocol)
+    if args.holdout is None:
+        parser.error("holdout is required unless --preflight is used")
     return execute(args, protocol) if args.execute else dry_run(args, protocol)
 
 

@@ -647,3 +647,41 @@ def test_execute_refuses_without_an_adapter_archive(tmp_path) -> None:
 
     with pytest.raises(ProtocolViolation, match="adapter-archive is required"):
         EVAL.main([str(holdout), "--protocol", str(PROTOCOL_PATH), "--execute"])
+
+
+# ---------------------------------------------------------------------------
+# Generation preflight
+# ---------------------------------------------------------------------------
+
+
+def test_preflight_reports_without_downloading(capsys) -> None:
+    rc = EVAL.main(["--protocol", str(PROTOCOL_PATH), "--preflight"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "model_download=false" in out
+    assert "generation_supported=" in out
+    assert "os=" in out and "python=" in out
+
+
+def test_preflight_needs_no_holdout_file(capsys) -> None:
+    # The holdout must not be required merely to ask whether the machine works.
+    rc = EVAL.main(["--protocol", str(PROTOCOL_PATH), "--preflight"])
+
+    assert rc == 0
+    assert "generation_supported=" in capsys.readouterr().out
+
+
+def test_preflight_blocks_when_the_stack_is_absent(capsys) -> None:
+    # No CUDA and no transformers on this machine, so it must refuse clearly
+    # rather than implying the run could proceed.
+    EVAL.main(["--protocol", str(PROTOCOL_PATH), "--preflight"])
+
+    out = capsys.readouterr().out
+    assert "generation_supported=false" in out
+    assert "blocked_reason=" in out
+
+
+def test_a_missing_holdout_argument_is_an_error_without_preflight() -> None:
+    with pytest.raises(SystemExit):
+        EVAL.main(["--protocol", str(PROTOCOL_PATH)])
