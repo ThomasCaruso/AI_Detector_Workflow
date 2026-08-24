@@ -4,7 +4,7 @@
   "protocol_id": "personal-style-b-holdout-eval-v1",
   "base_model": "Qwen/Qwen3-8B",
   "base_model_revision": "b968826d9c46dd6066d109eabc6255188de91218",
-  "adapter_artifact_sha256": null,
+  "adapter_artifact_sha256": "ec0179f460d99bf83118b15b564b15526f43a4f64931f1a206704d3f19ac1de8",
   "adapter_freeze_requirement": "adapter_artifact_sha256 must be populated from the frozen post-training artifact manifest before any holdout generation begins",
   "holdout": {
     "expected_examples": 12,
