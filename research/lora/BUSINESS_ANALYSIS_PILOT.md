@@ -1,8 +1,8 @@
 # Business-analysis corpus pilot findings
 
-This note records measured local-artifact results from the first five business-analysis sources: four CBO reports and one GAO report. It is an empirical sourcing record, not a substitute for the local registry, artifact hashes, correction ledgers, or frozen annotation manifests.
+This note records measured local-artifact results from the first six business-analysis sources: four CBO reports and two GAO reports. It is an empirical sourcing record, not a substitute for the local registry, artifact hashes, correction ledgers, or frozen annotation manifests.
 
-## Five-document result
+## Six-document result
 
 | source | pages used | heuristic clean passages | segmentation-independent prose words | reviewed ledger rules |
 |---|---:|---:|---:|---:|
@@ -11,12 +11,13 @@ This note records measured local-artifact results from the first five business-a
 | `cbo-62550` | 12 | 15 | 4,775 | 76 |
 | `cbo-61945` | 13 | 14 | 5,135 | 74 |
 | `gao-26-108140` | 56; pages 55-56 excluded for style | 14 | 6,681 | 1 |
+| `gao-25-107604` | selected pages 7-42 | 8 | 4,970 | 7 |
 
-Combined: 79 heuristic passages and 29,656 prose words from five independent documents across two publishers/agencies.
+Combined: **87 heuristic passages and 34,626 prose words from six independent documents across two publishers/agencies.** All six frozen artifacts have canonical text derivations; the local registry remains the authority for whether each source has been promoted from `candidate` to `approved`.
 
 Passage counts are useful for sourcing but are not stable enough to be a corpus contract. They moved when line-break repairs changed line lengths and exposed weaknesses in heuristic paragraph segmentation. Segmentation-independent prose-word volume is the more stable volume measure.
 
-The GAO source is an important cost and diversity result. It contributes prose volume comparable to the CBO reports while requiring dramatically fewer reviewed extraction repairs. That makes GAO worth retaining as an independent source pool rather than filling all six business-analysis slots from one publisher.
+The GAO sources are important cost and diversity results. Together they contribute substantial prose volume while requiring dramatically fewer reviewed extraction repairs than the CBO reports. They also add a second agency/typesetting profile rather than filling all six business-analysis slots from one publisher.
 
 ## Corpus constraint decision
 
@@ -25,7 +26,7 @@ For the first adapter pilot:
 - **Hard structural floor:** at least 6 independent approved documents per genre.
 - **Monitoring threshold:** at least 25 clean passages per genre.
 
-The earlier 25-passage number is no longer treated as a binding target. Four CBO documents already exceeded it substantially, and the fifth GAO source reinforces that result. It remains useful as a low-volume warning, while document independence remains the binding design constraint because additional passages from one source cannot replace held-out source diversity.
+The earlier 25-passage number is no longer treated as a binding target. The six frozen business-analysis sources exceed it by more than 3x. It remains useful as a low-volume warning, while document independence remains the binding design constraint because additional passages from one source cannot replace held-out source diversity.
 
 Do not generalize this yield to every genre. Continue reporting clean passage count and prose-word volume for each source pool so the monitoring threshold can be revisited if another genre behaves differently.
 
@@ -33,11 +34,13 @@ Do not generalize this yield to every genre. Continue reporting clean passage co
 
 ### Manual split-capital review remains mandatory
 
-Single-capital-plus-space patterns are not safely auto-repairable. Real examples include ordinary articles (`A common method`), labels (`Part B account`, `B minus`), and genuine extraction artifacts (`T reasury`). GAO-26-108140 produced no genuine split-capital artifacts in the selected pages despite many superficially similar hits, showing that heuristic precision is publisher/typesetting-dependent. Every candidate repair requires local context.
+Single-capital-plus-space patterns are not safely auto-repairable. Real examples include ordinary articles (`A common method`), labels (`Part B account`, `B minus`), and genuine extraction artifacts (`T reasury`). The two GAO reports produced essentially no genuine split-capital artifacts on selected target pages despite many superficially similar hits, showing that heuristic precision is publisher/typesetting-dependent. Every candidate repair requires local context.
 
 ### Hyphenation remains reviewed, not guessed
 
-Same-document evidence can resolve many line-break hyphens, but unresolved cases include closed words, genuine compounds, URLs, designators, and text interrupted by footnote numbers. The advisory reviewer now detects alphanumeric cases such as `COVID-\n19`, `DDG-\n51`, and `F/A-\n18`; broader detection intentionally leaves ambiguous cases such as `accept-\n32` unresolved for human inspection. Only the reviewed correction ledger changes canonical text.
+Same-document evidence can resolve many line-break hyphens, but unresolved cases include closed words, genuine compounds, URLs, designators, statutes, and text interrupted by footnote numbers. The advisory reviewer detects alphanumeric cases such as `COVID-\n19`, `DDG-\n51`, and `F/A-\n18`; broader detection intentionally leaves ambiguous cases such as `accept-\n32` unresolved for human inspection. Only the reviewed correction ledger changes canonical text.
+
+`gao-25-107604` reinforces the rule: all seven selected-page repairs were `KEEP`, including report/statute identifiers that required human review because no supporting inline form existed. No blanket `JOIN` fallback would have been safe.
 
 ### Correction rules must not overlap or depend on order
 
@@ -53,13 +56,15 @@ A page-spanning text box can be emitted in full on multiple pages. Exact duplica
 
 `cbo-62264` contains a third-party Shutterstock cover image on page 1. The registry records that page as a rights exclusion. `gao-26-108140` contains DOD-authored correspondence in Appendix IV on PDF pages 55-56; those pages are recorded as a style/authorship exclusion even though the scanned letter currently has no extractable text. PDF excerpts declare `metadata.source_pages`, and annotation preparation rejects excerpts that overlap either exclusion type.
 
+`gao-25-107604` did not require a source exclusion: the reviewed selected pages are GAO-authored, and no distinct transmitted-correspondence section or sustained third-party quoted prose was identified in the screened structure. Do not invent exclusions merely to make source records look symmetrical.
+
 ## Selective correction for long documents
 
 Do **not** make every page of a long PDF typographically perfect before deciding whether the document is useful.
 
-GAO-26-108140 validates the selective-review workflow: a 58-page artifact reached a frozen usable state with one reviewed ledger rule, versus dozens to hundreds of rules for much shorter CBO reports.
+Both GAO reports validate the selective-review workflow. `gao-26-108140` froze with one reviewed ledger rule across a 58-page artifact; `gao-25-107604` froze with seven reviewed rules across a 154-page artifact while only selected target-bearing pages were corrected. A known extraction artifact outside the selected target pages was documented and correctly left untouched.
 
-For long sources such as the remaining GAO report:
+For long sources:
 
 1. hash and base-extract the entire frozen artifact;
 2. review rights/authorship structure and identify candidate prose pages;
@@ -71,6 +76,8 @@ For long sources such as the remaining GAO report:
 
 Unused pages may retain extraction artifacts. That is acceptable because they cannot enter `target_text` without first being corrected and causing a new canonical-text hash. Once annotation packets are frozen, changing the correction ledger is a new source-target contract and must not be done silently.
 
-## Remaining business-analysis requirement
+## Business-analysis sourcing status
 
-The pool currently has five frozen independent documents. The genre is not structurally complete until a sixth independent approved document is frozen. `gao-25-107604` is the next candidate; its 154-page length should be handled with the same selective-page workflow rather than whole-document cleanup.
+The frozen source pool now contains **six independent derivation-complete documents**, satisfying the pilot's source-count floor at the sourcing layer. The local registry should promote a source to `approved` only after its document-local rights/provenance, exclusions, snapshot, derivation, and viability checks are all complete.
+
+Once all six are promoted, business analysis is source-complete for the first pilot. Do not add more business-analysis documents merely to increase volume before the other four genres reach the same six-source floor. The next sourcing priority is `technical_explanation`.
