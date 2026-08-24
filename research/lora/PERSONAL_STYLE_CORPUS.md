@@ -92,11 +92,20 @@ The extractor must record at least:
 
 Do not normalize spelling, grammar, punctuation, capitalization, or sentence structure. Natural imperfections are part of the writing distribution.
 
+The pinned implementation is `personal-docx` `v1` in `authorship_shift.personal_extraction`. It reads `word/document.xml`, then `word/comments.xml`, then header/footer parts, in that order; emits non-empty paragraphs in document order; renders `w:tab`, `w:br` and `w:cr` as one space each; and records `part`, paragraph style, and whether the paragraph sits in a table. Region identifiers are `<source_id>:b<NNNN>`, where the ordinal is the document-order block index the frozen region mask already refers to. `extracted_text_sha256` is the SHA-256 of the newline-joined region texts.
+
 ## PDF fallback
 
 If a personal PDF already has a clean text layer and stable paragraph extraction, it may use the same lightweight region contract with a pinned PDF extractor. If extraction artifacts materially alter target prose, escalate that source to the full canonical PDF correction workflow used by the general corpus.
 
 Escalation is source-specific; one problematic PDF does not force every personal document through page-scoped derivation machinery.
+
+`assess_pdf_text_layer` decides cleanliness against the pinned `pypdf==6.15.0` text layer. Two artifacts disqualify a source, because both change eligible target prose rather than only its presentation:
+
+- shredded lines, where a renderer emits roughly one word per line, so paragraph boundaries are not recoverable;
+- doubled intra-line spacing, so word spacing no longer matches the source prose.
+
+A failing assessment means that source escalates. It never licenses repairing the text in place under the light contract.
 
 ## Semantic-plan annotations
 
