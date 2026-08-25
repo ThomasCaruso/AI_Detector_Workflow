@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "experiment_id": "personal-style-b-v1",
+  "scoring_protocol_id": "personal-style-b-blind-score-v1",
+  "inputs": {
+    "outputs_blinded_sha256": "33482225bbce3411920b10d032b5a42ff776ebcd046a4e7608eeb07312dbc02e",
+    "condition_mapping_sha256": "5fab7918c1afe3f99a044856f039ea8068e648a58c0e29c09a2dd407290b9d32",
+    "generation_manifest_sha256": "e8b45022e18fa86870f7cc00e4d758e2a95492a98d8ab24a64c5953e16b6274c",
+    "expected_holdout_examples": 12,
+    "expected_blinded_outputs": 24
+  },
+  "blinding": {
+    "condition_mapping_must_remain_unread_by_human_scorer_until_scores_frozen": true,
+    "pairing_may_be_constructed_programmatically_from_mapping_only_if_condition_names_are_removed_before scorer_view": true,
+    "left_right_assignment_seed": 20260825,
+    "scorer_sees": [
+      "holdout_semantic_plan",
+      "authentic_holdout_target",
+      "two_blind_generated_outputs",
+      "blind_labels"
+    ],
+    "scorer_must_not_see": [
+      "base_or_adapter_condition",
+      "condition_mapping",
+      "training_examples"
+    ]
+  },
+  "scoring": {
+    "semantic_fidelity_per_output": {
+      "content_coverage": {
+        "range": [0, 4],
+        "anchors": {
+          "4": "all major content atoms preserved accurately",
+          "3": "minor omission with core meaning preserved",
+          "2": "meaningful omission or distortion",
+          "1": "severe loss of requested content",
+          "0": "fails the requested task or contradicts the plan"
+        }
+      },
+      "immutable_detail_accuracy": {
+        "range": [0, 2],
+        "anchors": {
+          "2": "all supplied names, numbers, examples, and other immutable details are correct",
+          "1": "minor omission with no material incorrect detail",
+          "0": "material immutable detail is wrong, contradicted, or invented"
+        }
+      },
+      "qualification_preservation": {
+        "range": [0, 2],
+        "anchors": {
+          "2": "all required caveats, uncertainty, contrasts, and limits are preserved",
+          "1": "minor weakening or omission",
+          "0": "material qualification is lost or reversed"
+        }
+      },
+      "unsupported_additions": {
+        "range": [0, 2],
+        "anchors": {
+          "2": "no unsupported factual additions",
+          "1": "minor unsupported elaboration that does not change the argument",
+          "0": "substantive invented factual claim, name, number, or attribution"
+        }
+      },
+      "total_range": [0, 10],
+      "hard_fail_flags": [
+        "contradicts_semantic_plan",
+        "material_immutable_detail_error",
+        "invented_proper_name_or_number",
+        "material_required_qualification_lost",
+        "task_failure"
+      ]
+    },
+    "style_similarity_per_output": {
+      "sentence_rhythm_and_structure": {
+        "range": [1, 5],
+        "instruction": "judge similarity to the authentic target's sentence length variation, clause structure, and cadence; do not reward verbatim copying"
+      },
+      "paragraph_structure_and_pacing": {
+        "range": [1, 5],
+        "instruction": "judge similarity in paragraphing, development density, and pacing"
+      },
+      "diction_and_register": {
+        "range": [1, 5],
+        "instruction": "judge similarity in vocabulary level, formality, directness, and phrasing tendencies without rewarding exact wording"
+      },
+      "rhetorical_progression": {
+        "range": [1, 5],
+        "instruction": "judge similarity in how claims, examples, transitions, and conclusions are organized"
+      },
+      "overall_voice_fit": {
+        "range": [1, 5],
+        "instruction": "holistic similarity to the authentic target's writing behavior, excluding content correctness and exact phrase copying"
+      }
+    },
+    "paired_style_choice": {
+      "allowed": ["left", "right", "tie"],
+      "instruction": "choose which blind output is stylistically closer to the authentic holdout target after scoring both independently; content fidelity must not be used to break a style tie",
+      "confidence_range": [1, 3]
+    }
+  },
+  "primary_endpoints": {
+    "style": "after unblinding, count adapter wins, base wins, and ties on paired_style_choice across all 12 holdout examples",
+    "fidelity_guardrail": "adapter mean semantic-fidelity total must be no more than 0.5 points below base mean, and adapter hard-fail count must not exceed base hard-fail count",
+    "proof_of_signal_rule": "strong signal if adapter wins paired style on at least 8 of 12 examples, adapter wins exceed base wins, and the fidelity guardrail passes",
+    "mixed_signal_rule": "mixed/weak signal if adapter wins exceed base wins but strong-signal threshold is not met and fidelity guardrail passes",
+    "no_signal_rule": "no clean signal if adapter wins do not exceed base wins or if the fidelity guardrail fails"
+  },
+  "secondary_reports": [
+    "mean and median fidelity totals by condition",
+    "hard-fail counts by condition",
+    "mean style-dimension scores by condition",
+    "paired style win/base-win/tie counts",
+    "exact two-sided sign test on non-tied paired style choices, reported descriptively rather than used as the sole decision rule",
+    "output word-count distribution by condition",
+    "long verbatim target-overlap diagnostic excluding supplied immutable-detail spans"
+  ],
+  "scoring_order": {
+    "score_all_12_pairs_before_unblinding": true,
+    "freeze_score_file_sha256_before_opening_condition_mapping": true,
+    "no_score_edits_after_unblinding": true,
+    "no_regeneration": true
+  },
+  "forbidden": [
+    "using detector scores as a scoring criterion",
+    "changing rubric after reading generated prose",
+    "opening condition_mapping.json before scores are frozen",
+    "rewarding exact target phrase copying as style similarity",
+    "changing or regenerating model outputs",
+    "excluding unfavorable pairs after scoring begins"
+  ]
+}
