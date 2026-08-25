@@ -243,7 +243,7 @@ def test_one_word_per_line_pdf_requires_escalation() -> None:
 
 
 def test_doubled_intra_line_spacing_requires_escalation() -> None:
-    assessment = assess_pdf_text_layer(["Ecommerce  StartUps   The  community  is  small.\n"])
+    assessment = assess_pdf_text_layer(["Widget  Catalogue   The  sample  is  small.\n"])
 
     assert assessment.requires_escalation
     assert assessment.doubled_space_lines == 1
