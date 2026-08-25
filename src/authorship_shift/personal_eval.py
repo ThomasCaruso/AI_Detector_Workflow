@@ -238,6 +238,144 @@ def assert_no_target_leakage(
 
 
 # ---------------------------------------------------------------------------
+# Verbatim target-overlap diagnostic
+# ---------------------------------------------------------------------------
+
+# Function words a model inserts when stitching supplied details into prose.
+# Deliberately small: every addition here increases the risk of suppressing a
+# genuine overlap, so the list covers determiners, conjunctions, copulas and the
+# prepositions that appear in list-joining, and nothing else.
+_STITCH_WORDS = frozenset(
+    {
+        "a", "an", "the", "and", "or", "of", "to", "for", "with", "as",
+        "was", "were", "is", "are", "also", "then", "in", "on", "at",
+        "by", "from", "that", "this",
+    }
+)
+
+_PUNCT_RE = re.compile(r"[^\w\s]+")
+
+
+def normalize_for_overlap(text: str) -> list[str]:
+    """Lowercase and drop punctuation, so an Oxford comma cannot change a match."""
+
+    return _PUNCT_RE.sub(" ", text.lower()).split()
+
+
+def _content_words(words: Sequence[str]) -> list[str]:
+    return [word for word in words if word not in _STITCH_WORDS]
+
+
+@dataclass(frozen=True)
+class OverlapDiagnostic:
+    """Verbatim overlap between one output and one target.
+
+    Reports raw and eligible counts separately and always. Collapsing them into a
+    single number is what made an earlier version of this diagnostic look like
+    evidence of memorisation when it was measuring supplied details being
+    correctly restated.
+    """
+
+    span_words: int
+    raw_spans: tuple[str, ...]
+    supplied_spans: tuple[str, ...]
+    eligible_spans: tuple[str, ...]
+
+    @property
+    def raw_count(self) -> int:
+        return len(self.raw_spans)
+
+    @property
+    def supplied_count(self) -> int:
+        return len(self.supplied_spans)
+
+    @property
+    def eligible_count(self) -> int:
+        return len(self.eligible_spans)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "span_words": self.span_words,
+            "raw_count": self.raw_count,
+            "supplied_count": self.supplied_count,
+            "eligible_count": self.eligible_count,
+            "eligible_spans": list(self.eligible_spans),
+        }
+
+
+def _supplied_variants(immutable_details: Sequence[str]) -> list[str]:
+    """Every contiguous run of supplied details, joined and connective-stripped.
+
+    Prose naturally concatenates adjacent details ("lunch was X, and dinner was
+    Y"), producing spans that cross a detail boundary and therefore match no
+    single detail. Matching against contiguous runs catches those without
+    licensing arbitrary recombination of unrelated details.
+    """
+
+    normalized = [normalize_for_overlap(detail) for detail in immutable_details]
+    variants: list[str] = []
+    for start in range(len(normalized)):
+        joined: list[str] = []
+        for end in range(start, len(normalized)):
+            joined = joined + normalized[end]
+            variants.append(" ".join(_content_words(joined)))
+    return variants
+
+
+def target_overlap_diagnostic(
+    output_text: str,
+    target_text: str,
+    immutable_details: Sequence[str] = (),
+    *,
+    span_words: int = 8,
+) -> OverlapDiagnostic:
+    """Long verbatim spans shared by an output and a target.
+
+    A span is attributed to the supplied plan when its content words appear
+    contiguously inside some contiguous run of immutable details. Restating a
+    detail the prompt provided is the model doing as it was told, not recall.
+
+    What remains - ``eligible_spans`` - is the only part that could indicate the
+    model reproducing wording it was not given. Note that for a held-out target
+    the model never trained on, even eligible overlap cannot be memorisation of
+    that target; measuring memorisation requires comparing outputs against
+    TRAINING targets, which this function does not do.
+    """
+
+    output_words = normalize_for_overlap(output_text)
+    target_words = normalize_for_overlap(target_text)
+
+    target_spans = {
+        " ".join(target_words[i : i + span_words])
+        for i in range(len(target_words) - span_words + 1)
+    }
+    raw = sorted(
+        {
+            " ".join(output_words[i : i + span_words])
+            for i in range(len(output_words) - span_words + 1)
+        }
+        & target_spans
+    )
+
+    variants = _supplied_variants(immutable_details)
+    supplied: list[str] = []
+    eligible: list[str] = []
+    for span in raw:
+        stripped = " ".join(_content_words(span.split()))
+        if stripped and any(stripped in variant for variant in variants):
+            supplied.append(span)
+        else:
+            eligible.append(span)
+
+    return OverlapDiagnostic(
+        span_words=span_words,
+        raw_spans=tuple(raw),
+        supplied_spans=tuple(supplied),
+        eligible_spans=tuple(eligible),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Generation plan
 # ---------------------------------------------------------------------------
 

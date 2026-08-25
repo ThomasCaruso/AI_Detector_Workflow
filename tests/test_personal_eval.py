@@ -685,3 +685,166 @@ def test_preflight_blocks_when_the_stack_is_absent(capsys) -> None:
 def test_a_missing_holdout_argument_is_an_error_without_preflight() -> None:
     with pytest.raises(SystemExit):
         EVAL.main(["--protocol", str(PROTOCOL_PATH)])
+
+
+
+
+# ---------------------------------------------------------------------------
+# Target-overlap diagnostic
+# ---------------------------------------------------------------------------
+#
+# Fixtures below are synthetic. They reproduce the STRUCTURE of the real failure
+# modes -- punctuation variance, spans crossing detail boundaries, several
+# details concatenated in prose -- without reproducing any of the user's prose.
+
+from authorship_shift.personal_eval import (  # noqa: E402
+    normalize_for_overlap,
+    target_overlap_diagnostic,
+)
+
+
+def test_punctuation_differences_do_not_defeat_detail_matching() -> None:
+    # The detail omits the Oxford comma; the target includes it. Matching raw
+    # strings let this through as unexplained overlap.
+    detail = "the recorded setbacks were drought, blight and an unusually early frost"
+    target = "The recorded setbacks were drought, blight, and an unusually early frost."
+    output = "The recorded setbacks were drought, blight, and an unusually early frost."
+
+    d = target_overlap_diagnostic(output, target, [detail])
+
+    assert d.raw_count >= 1
+    assert d.eligible_count == 0, d.eligible_spans
+
+
+def test_a_span_crossing_two_adjacent_details_is_attributed_to_them() -> None:
+    details = [
+        "the morning session covered ratios and yields",
+        "the afternoon session covered costs, margins and rework",
+    ]
+    target = (
+        "The morning session covered ratios and yields, and the afternoon "
+        "session covered costs, margins, and rework."
+    )
+    output = (
+        "First the morning session covered ratios and yields, and the afternoon "
+        "session covered costs, margins, and rework."
+    )
+
+    d = target_overlap_diagnostic(output, target, details)
+
+    assert d.raw_count > 0
+    assert d.eligible_count == 0, d.eligible_spans
+    assert d.supplied_count == d.raw_count
+
+
+def test_several_adjacent_details_concatenated_in_prose_are_attributed() -> None:
+    details = [
+        "the first stage was intake and sorting",
+        "the second stage was washing and grading",
+        "the third stage was packing, labelling and dispatch",
+    ]
+    target = (
+        "The first stage was intake and sorting. The second stage was washing "
+        "and grading, and the third stage was packing, labelling, and dispatch."
+    )
+    output = (
+        "The first stage was intake and sorting, the second stage was washing "
+        "and grading, and the third stage was packing, labelling and dispatch."
+    )
+
+    d = target_overlap_diagnostic(output, target, details)
+
+    assert d.raw_count > 0
+    assert d.eligible_count == 0, d.eligible_spans
+
+
+def test_genuine_overlap_outside_supplied_details_is_still_detected() -> None:
+    # This span is in both target and output but nowhere in the plan, so the
+    # filter must not swallow it.
+    shared = "it persuades nobody by force it persuades them by being familiar"
+    details = ["the routes are rail, river and coastal shipping"]
+    target = f"That is what made the arrangement durable. {shared}, year after year."
+    output = f"The arrangement did not coerce. {shared}, which is the point."
+
+    d = target_overlap_diagnostic(output, target, details)
+
+    assert d.eligible_count > 0
+    assert any("persuades" in span for span in d.eligible_spans)
+
+
+def test_unrelated_overlap_is_not_suppressed_by_an_unrelated_detail() -> None:
+    details = ["the surveyors were Hollis and Marchetti"]
+    shared = "the process is slow and it is uncomfortable and demands a kind of patience"
+    target = f"Progress took more than intent. {shared}."
+    output = f"It required more than intent. {shared}, as the surveyors conceded."
+
+    d = target_overlap_diagnostic(output, target, details)
+
+    assert d.eligible_count > 0
+
+
+def test_a_span_leaving_a_detail_into_unsupplied_wording_stays_eligible() -> None:
+    # A span that starts inside a supplied detail but continues into wording the
+    # plan never supplied is not fully explained, and must remain reportable.
+    details = ["the surveyors were Hollis and Marchetti"]
+    target = "The surveyors were Hollis and Marchetti, who were trained in the northern school."
+    output = "The surveyors were Hollis and Marchetti, who were trained in the northern school."
+
+    d = target_overlap_diagnostic(output, target, details)
+
+    assert d.raw_count > 0
+    assert d.eligible_count > 0
+
+
+def test_no_details_supplied_means_every_span_is_eligible() -> None:
+    shared = "one two three four five six seven eight nine ten eleven twelve"
+
+    d = target_overlap_diagnostic(shared, shared, [])
+
+    assert d.raw_count > 0
+    assert d.eligible_count == d.raw_count
+    assert d.supplied_count == 0
+
+
+def test_raw_and_eligible_counts_are_reported_separately() -> None:
+    details = ["the third stage was packing, labelling and dispatch"]
+    target = "The third stage was packing, labelling, and dispatch that week."
+    output = "The third stage was packing, labelling, and dispatch that week."
+
+    d = target_overlap_diagnostic(output, target, details)
+    payload = d.to_dict()
+
+    assert d.raw_count == d.supplied_count + d.eligible_count
+    assert payload["raw_count"] >= payload["eligible_count"]
+    assert set(payload) == {
+        "span_words",
+        "raw_count",
+        "supplied_count",
+        "eligible_count",
+        "eligible_spans",
+    }
+
+
+def test_short_outputs_produce_no_spans() -> None:
+    d = target_overlap_diagnostic("too short", "also short", [])
+
+    assert d.raw_count == 0
+
+
+def test_normalisation_strips_punctuation_and_case() -> None:
+    assert normalize_for_overlap("Drought, Blight -- and Frost!") == [
+        "drought",
+        "blight",
+        "and",
+        "frost",
+    ]
+
+
+def test_span_width_is_configurable() -> None:
+    shared = "alpha beta gamma delta epsilon zeta"
+
+    wide = target_overlap_diagnostic(shared, shared, [], span_words=8)
+    narrow = target_overlap_diagnostic(shared, shared, [], span_words=4)
+
+    assert wide.raw_count == 0
+    assert narrow.raw_count > 0
