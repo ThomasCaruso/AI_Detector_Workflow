@@ -255,6 +255,82 @@ def extract_docx(
     )
 
 
+PDF_LAYOUT_EXTRACTOR_NAME = "personal-pdf-layout"
+PDF_LAYOUT_EXTRACTOR_VERSION = "v1"
+
+# A first line indented past this many columns starts a new block. Continuation
+# lines in a justified body sit at column 0; a paragraph's first line carries the
+# document's first-line indent, and a centred title carries far more.
+_PDF_INDENT_THRESHOLD = 4
+
+
+def reconstruct_pdf_paragraphs(
+    page_texts: Sequence[str],
+    *,
+    indent_threshold: int = _PDF_INDENT_THRESHOLD,
+) -> tuple[tuple[str, ...], tuple[int, ...]]:
+    """Rebuild paragraphs from layout-mode PDF text.
+
+    ``extract_text(extraction_mode="layout")`` preserves horizontal position as
+    leading spaces, which is what makes paragraph boundaries recoverable from a
+    renderer whose default text layer emits one word per line. Lines are joined
+    with a single space; a line whose indent clears ``indent_threshold`` opens a
+    new block.
+
+    Returns ``(blocks, indents)`` where ``indents`` is each block's first-line
+    indent, so a caller can tell a centred title from body text without
+    re-deriving it.
+
+    This reads position, not meaning. It does not repair hyphenation, respace
+    words, or alter characters; callers should still check for line-break
+    hyphenation before trusting the result as target prose.
+    """
+
+    lines: list[tuple[int, str]] = []
+    for text in page_texts:
+        for raw in text.splitlines():
+            if raw.strip():
+                lines.append((len(raw) - len(raw.lstrip()), raw.strip()))
+
+    blocks: list[str] = []
+    indents: list[int] = []
+    current: list[str] = []
+    current_indent = 0
+    for indent, text in lines:
+        if indent >= indent_threshold:
+            if current:
+                blocks.append(" ".join(current))
+                indents.append(current_indent)
+            current = [text]
+            current_indent = indent
+        elif current:
+            current.append(text)
+        else:
+            current = [text]
+            current_indent = indent
+    if current:
+        blocks.append(" ".join(current))
+        indents.append(current_indent)
+
+    return tuple(blocks), tuple(indents)
+
+
+def find_linebreak_hyphenation(page_texts: Sequence[str]) -> tuple[str, ...]:
+    """Lines ending in a hyphen, which joining would silently fuse into one word.
+
+    Returned for review rather than repaired: deciding whether "self- evident"
+    was hyphenated by the author or broken by the renderer is a judgement about
+    the source, not something an extractor should guess.
+    """
+
+    return tuple(
+        line.strip()
+        for text in page_texts
+        for line in text.splitlines()
+        if line.strip().endswith("-")
+    )
+
+
 @dataclass(frozen=True)
 class PdfTextLayerAssessment:
     """Whether a PDF's existing text layer can carry target prose as-is."""

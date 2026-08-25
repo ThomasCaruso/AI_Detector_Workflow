@@ -255,3 +255,119 @@ def test_empty_pdf_text_layer_requires_escalation() -> None:
 
     assert assessment.requires_escalation
     assert assessment.line_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Layout-mode PDF paragraph reconstruction
+# ---------------------------------------------------------------------------
+
+from authorship_shift.personal_extraction import (  # noqa: E402
+    PDF_LAYOUT_EXTRACTOR_NAME,
+    PDF_LAYOUT_EXTRACTOR_VERSION,
+    find_linebreak_hyphenation,
+    reconstruct_pdf_paragraphs,
+)
+
+
+def test_indented_first_lines_open_new_blocks() -> None:
+    page = (
+        "        The first paragraph starts here\n"
+        "and continues on this line\n"
+        "and this one.\n"
+        "        The second paragraph starts here\n"
+        "and continues.\n"
+    )
+
+    blocks, indents = reconstruct_pdf_paragraphs([page])
+
+    assert len(blocks) == 2
+    assert blocks[0] == "The first paragraph starts here and continues on this line and this one."
+    assert blocks[1] == "The second paragraph starts here and continues."
+    assert indents == (8, 8)
+
+
+def test_a_centred_title_is_separable_by_its_indent() -> None:
+    page = (
+        "                    A Centred Title\n"
+        "        Body text begins here\n"
+        "and runs on.\n"
+    )
+
+    blocks, indents = reconstruct_pdf_paragraphs([page])
+
+    assert blocks[0] == "A Centred Title"
+    assert indents[0] > indents[1]
+
+
+def test_blocks_span_page_boundaries() -> None:
+    first = "        A paragraph that begins on one page\nand keeps going\n"
+    second = "to the next page without a new indent.\n"
+
+    blocks, _ = reconstruct_pdf_paragraphs([first, second])
+
+    assert len(blocks) == 1
+    assert blocks[0].endswith("without a new indent.")
+
+
+def test_blank_lines_do_not_create_blocks() -> None:
+    page = "        Only paragraph here\n\n   \nand its continuation.\n"
+
+    blocks, _ = reconstruct_pdf_paragraphs([page])
+
+    assert len(blocks) == 1
+
+
+def test_reconstruction_is_deterministic() -> None:
+    page = "        Alpha beta\ngamma delta\n        Epsilon zeta\n"
+
+    assert reconstruct_pdf_paragraphs([page]) == reconstruct_pdf_paragraphs([page])
+
+
+def test_reconstruction_preserves_characters_verbatim() -> None:
+    page = "        “Curly quotes” and an em-dash — kept,and odd spacing\nsurvives.\n"
+
+    blocks, _ = reconstruct_pdf_paragraphs([page])
+
+    assert "“Curly quotes”" in blocks[0]
+    assert "—" in blocks[0]
+    assert "kept,and" in blocks[0]
+
+
+def test_an_unindented_document_yields_one_block() -> None:
+    page = "no indent anywhere\njust running text\nacross lines\n"
+
+    blocks, indents = reconstruct_pdf_paragraphs([page])
+
+    assert len(blocks) == 1
+    assert indents == (0,)
+
+
+def test_indent_threshold_is_configurable() -> None:
+    page = "  Two space indent\nand a continuation.\n"
+
+    default_blocks, _ = reconstruct_pdf_paragraphs([page])
+    strict_blocks, _ = reconstruct_pdf_paragraphs([page], indent_threshold=2)
+
+    assert len(default_blocks) == 1
+    assert len(strict_blocks) == 1  # single leading block either way
+    assert strict_blocks[0].startswith("Two space indent")
+
+
+def test_linebreak_hyphenation_is_reported_not_repaired() -> None:
+    page = "        A word broken self-\nevident across a line break.\n"
+
+    found = find_linebreak_hyphenation([page])
+    blocks, _ = reconstruct_pdf_paragraphs([page])
+
+    assert found == ("A word broken self-",)
+    # Reported, and the joined text still shows the break for a human to judge.
+    assert "self- evident" in blocks[0]
+
+
+def test_clean_pages_report_no_hyphenation() -> None:
+    assert find_linebreak_hyphenation(["        No breaks here\nat all.\n"]) == ()
+
+
+def test_layout_extractor_is_pinned() -> None:
+    assert PDF_LAYOUT_EXTRACTOR_NAME == "personal-pdf-layout"
+    assert PDF_LAYOUT_EXTRACTOR_VERSION == "v1"
