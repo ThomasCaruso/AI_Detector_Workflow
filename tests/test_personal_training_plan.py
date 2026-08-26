@@ -634,3 +634,42 @@ def test_the_prompt_carries_no_style_instruction(compiled) -> None:
 
     for banned in ("like thomas", "his voice", "author's style", "detector", "human-sounding"):
         assert banned not in prompt
+
+
+# --- expected experiment id is taken from the config, not hardcoded ---------
+#
+# The trainer was written for Experiment B and defaulted to B's experiment id.
+# A later experiment ships its own config; the dataset contract has to compare
+# against that id rather than B's, without changing behaviour for a config that
+# does not name one.
+
+def _load_trainer_module():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "research" / "lora" / "train_personal_qlora.py"
+    spec = importlib.util.spec_from_file_location("_train_personal_qlora_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_expected_experiment_id_comes_from_config():
+    trainer = _load_trainer_module()
+
+    assert trainer.expected_experiment_id_for({"experiment_id": "synthetic-x-v9"}) == "synthetic-x-v9"
+
+
+def test_expected_experiment_id_falls_back_to_the_default():
+    trainer = _load_trainer_module()
+
+    from authorship_shift.personal_dataset import DEFAULT_EXPERIMENT_ID
+
+    assert trainer.expected_experiment_id_for({}) == DEFAULT_EXPERIMENT_ID
+
+
+def test_expected_experiment_id_is_coerced_to_str():
+    trainer = _load_trainer_module()
+
+    assert trainer.expected_experiment_id_for({"experiment_id": 123}) == "123"

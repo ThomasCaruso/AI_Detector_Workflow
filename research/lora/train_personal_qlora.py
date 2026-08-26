@@ -208,8 +208,26 @@ def build_training_rows(examples) -> list[dict[str, Any]]:
     ]
 
 
+def expected_experiment_id_for(config: dict[str, Any]) -> str:
+    """The experiment id the dataset must declare, taken from the config.
+
+    The trainer was written for Experiment B and defaulted to B's id. A later
+    experiment ships its own config with its own id, and the dataset contract
+    check has to compare against that rather than against B's. Falling back to
+    :data:`DEFAULT_EXPERIMENT_ID` keeps a config without an explicit id behaving
+    exactly as before.
+    """
+
+    return str(config.get("experiment_id", DEFAULT_EXPERIMENT_ID))
+
+
 def dry_run(config: dict[str, Any], manifest: dict[str, Any], examples, dataset_path: Path) -> int:
-    verify_train_dataset(dataset_path, manifest, examples)
+    verify_train_dataset(
+        dataset_path,
+        manifest,
+        examples,
+        expected_experiment_id=expected_experiment_id_for(config),
+    )
     rows = build_training_rows(examples)
     words = sum(len(example.target_text.split()) for example in examples)
 
@@ -306,7 +324,12 @@ def preflight() -> int:
 
 
 def execute(config: dict[str, Any], manifest: dict[str, Any], examples, dataset_path: Path) -> int:
-    verify_train_dataset(dataset_path, manifest, examples)
+    verify_train_dataset(
+        dataset_path,
+        manifest,
+        examples,
+        expected_experiment_id=expected_experiment_id_for(config),
+    )
 
     # Heavy imports sit below every contract check, so a rejected dataset can
     # never trigger a model download or GPU initialization.
