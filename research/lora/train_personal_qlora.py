@@ -40,6 +40,12 @@ from authorship_shift.personal_dataset import (
     DEFAULT_EXPERIMENT_ID,
     PERSONAL_PROVENANCE_KIND,
 )
+from authorship_shift.plan_serialization import (
+    SERIALIZER_V1,
+    SERIALIZER_V2,
+    SERIALIZER_VERSIONS,
+    render_v2,
+)
 
 DEFAULT_CONFIG = ROOT / "research" / "lora" / "configs" / "qwen3_8b_personal_b_qlora.json"
 
@@ -196,12 +202,62 @@ Required qualifications:
 Preserve meaning, certainty, and supplied details. Do not invent factual claims or names."""
 
 
-def build_training_rows(examples) -> list[dict[str, Any]]:
+def serializer_version_for(config: dict[str, Any]) -> str:
+    """Which prompt layout this run renders, taken solely from the config.
+
+    Absent means ``semantic-plan-v1``: Experiment B and C configs name no
+    serializer and must keep rendering the layout their frozen datasets and
+    adapters were built against. An unrecognised value fails closed rather than
+    falling back, because silently training a different layout than the config
+    asked for is the failure this contract exists to prevent.
+
+    Selection is by this field alone. Branching on experiment_id would make the
+    layout an implicit property of an experiment's name rather than an explicit
+    declaration.
+    """
+
+    version = str(config.get("serializer_version", SERIALIZER_V1))
+    if version not in SERIALIZER_VERSIONS:
+        raise ValueError(
+            f"unknown serializer_version {version!r}; supported: {SERIALIZER_VERSIONS}"
+        )
+    return version
+
+
+def render_prompt_for(example, serializer_version: str) -> str:
+    """Render one example under an explicit layout version.
+
+    v1 delegates to :func:`render_semantic_prompt` unchanged, so the bytes that
+    Experiment B and C trained on are produced by the same code that produced
+    them, not by a reimplementation that could drift.
+
+    v2 reads ``communicative_function`` from the compiled row's metadata. It is
+    never reconstructed from ``instruction``: that mapping is lossy, and a row
+    that legitimately lacks a function must render without the field rather than
+    acquire an invented one.
+    """
+
+    if serializer_version == SERIALIZER_V1:
+        return render_semantic_prompt(example)
+    if serializer_version == SERIALIZER_V2:
+        return render_v2(
+            instruction=example.instruction,
+            content_atoms=example.content_atoms,
+            immutable_details=example.immutable_details,
+            required_qualifications=example.required_qualifications,
+            communicative_function=(example.metadata or {}).get("communicative_function"),
+        )
+    raise ValueError(f"unknown serializer_version {serializer_version!r}")
+
+
+def build_training_rows(examples, *, serializer_version: str = SERIALIZER_V1) -> list[dict[str, Any]]:
     return [
         {
             "id": example.id,
             "split": example.split,
-            "prompt": [{"role": "user", "content": render_semantic_prompt(example)}],
+            "prompt": [
+                {"role": "user", "content": render_prompt_for(example, serializer_version)}
+            ],
             "completion": [{"role": "assistant", "content": example.target_text}],
         }
         for example in examples
@@ -228,7 +284,7 @@ def dry_run(config: dict[str, Any], manifest: dict[str, Any], examples, dataset_
         examples,
         expected_experiment_id=expected_experiment_id_for(config),
     )
-    rows = build_training_rows(examples)
+    rows = build_training_rows(examples, serializer_version=serializer_version_for(config))
     words = sum(len(example.target_text.split()) for example in examples)
 
     print("dataset_valid=true")
@@ -339,7 +395,7 @@ def execute(config: dict[str, Any], manifest: dict[str, Any], examples, dataset_
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     from trl import SFTConfig, SFTTrainer
 
-    rows = build_training_rows(examples)
+    rows = build_training_rows(examples, serializer_version=serializer_version_for(config))
     train_rows = [row for row in rows if row["split"] == "train"]
     if len(train_rows) != len(rows):
         raise DatasetContractError("non-train row reached trainer construction")

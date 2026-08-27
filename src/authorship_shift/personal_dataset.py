@@ -140,20 +140,44 @@ def annotation_set_sha256(packets: Sequence[Mapping[str, Any]]) -> str:
 # ---------------------------------------------------------------------------
 
 
+ROW_SCHEMA_V1 = "personal-dataset-row/v1"
+ROW_SCHEMA_V2 = "personal-dataset-row/v2"
+ROW_SCHEMAS: tuple[str, ...] = (ROW_SCHEMA_V1, ROW_SCHEMA_V2)
+
+
 def compile_row(
     packet: Mapping[str, Any],
     *,
     annotation_digest: str,
     experiment_id: str = DEFAULT_EXPERIMENT_ID,
+    row_schema: str = ROW_SCHEMA_V1,
 ) -> dict[str, Any]:
-    """Compile one approved packet into the lora_data row schema."""
+    """Compile one approved packet into the lora_data row schema.
 
+    ``row_schema`` is additive and defaults to v1, whose bytes are bound into
+    frozen Experiment B and C datasets and must never change.
+
+    v2 additionally carries the packet's ``communicative_function`` into
+    ``metadata``. It goes there rather than at the top level because
+    :func:`authorship_shift.lora_data.parse_example` builds a ``LoraExample``
+    with a fixed field set and silently drops unknown top-level keys, while
+    passing ``metadata`` through intact. A top-level field would therefore be
+    written to disk and then vanish before any consumer saw it.
+
+    The value is copied, never derived. ``instruction`` is a lossy projection of
+    the function - unrecognised functions collapse to a fallback string - so
+    reconstructing the function from it would invent information for exactly the
+    rows where it was missing. An absent key stays absent; a null stays null.
+    """
+
+    if row_schema not in ROW_SCHEMAS:
+        raise ValueError(f"unknown row schema {row_schema!r}; known: {ROW_SCHEMAS}")
     if packet.get("review_status") != APPROVED:
         raise ValueError(
             f"{packet.get('example_id')!r}: only approved packets may be compiled"
         )
     plan = packet.get("semantic_plan") or {}
-    return {
+    row = {
         "id": str(packet["example_id"]),
         "genre": PERSONAL_GENRE,
         "split": str(packet["split"]),
@@ -176,6 +200,13 @@ def compile_row(
             "annotation_set_sha256": annotation_digest,
         },
     }
+    if row_schema == ROW_SCHEMA_V1:
+        return row
+
+    row["metadata"]["row_schema"] = ROW_SCHEMA_V2
+    if "communicative_function" in plan:
+        row["metadata"]["communicative_function"] = plan["communicative_function"]
+    return row
 
 
 def compile_rows(
@@ -183,11 +214,17 @@ def compile_rows(
     *,
     annotation_digest: str,
     experiment_id: str = DEFAULT_EXPERIMENT_ID,
+    row_schema: str = ROW_SCHEMA_V1,
 ) -> list[dict[str, Any]]:
     """Compile approved packets in stable id order."""
 
     rows = [
-        compile_row(packet, annotation_digest=annotation_digest, experiment_id=experiment_id)
+        compile_row(
+            packet,
+            annotation_digest=annotation_digest,
+            experiment_id=experiment_id,
+            row_schema=row_schema,
+        )
         for packet in sorted(packets, key=lambda item: str(item["example_id"]))
     ]
     return rows
